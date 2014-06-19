@@ -23,7 +23,7 @@ If you simply what to make an API call then, you can use any flavor of callAPI o
 	}
 }];
 ```
-These calls will automatically handle the login by displaying an authntication webview to the user.
+These calls will automatically handle the login by displaying an authentication webview to the user.
 Another callAPI flavor allows to set a cache duration for the call result.
 
 ##Detailed authentification calls

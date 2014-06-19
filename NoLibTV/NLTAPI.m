@@ -125,7 +125,7 @@
     }
 }
 
-- (void)cancelAllCAlls{
+- (void)cancelAllCalls{
     for (NLTAPICallInfo* info in self.calls) {
         [info.connection cancel];
     }

@@ -29,12 +29,10 @@ typedef void (^NLTAuthResponseBlock)(NSError *error);
 @property (retain,nonatomic) NSString* oauthTokenType;
 @property (retain,nonatomic) NSDate* oauthExpirationDate;
 
-/*
- * Main methods
- */
+
 //Return the NLTOAuth singleton
 + (instancetype)sharedInstance;
-//Initialize with credentials
+//Initialize the singleton with Noco dev credentials
 - (void)configureWithClientId:(NSString*)clientId withClientSecret:(NSString*)clientsecret withRedirectUri:(NSString*)redirectUri;
 //Return true if the access token should be valid
 - (BOOL)isAuthenticated;
@@ -48,12 +46,13 @@ typedef void (^NLTAuthResponseBlock)(NSError *error);
 
 - (void)disconnect;
 
-//Return nil if accessToken is not available/valid
+//Build a request with oauthAccess token (if authenticated). Return nil if accessToken is not available/valid
 - (NSMutableURLRequest*)requestWithAccessTokenForURL:(NSURL*)url;
 
+#pragma mark - Internal tools
 /*
+ * Finish the authentification process once a auth code has been received from the NLTOAuthController
  * Internal usage : doesn't need to be manually called
  */
-//Finish the authentification process once a auth code has been received from the NLTOAuthController
 - (void)fetchAccessTokenFromAuthCode:(NSString*)code;
 @end

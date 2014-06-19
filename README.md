@@ -9,7 +9,7 @@ This library allows to use http://noco.tv API (https://api.noco.tv/1.1/documenta
 First you have to configure the NLTOAuth singleton with your credential
 ```objective-c
 [[NLTOAuth sharedInstance] configureWithClientId:nolibtv_client_id withClientSecret:nolibtv_client_secret withRedirectUri:nolibtv_redirect_uri];
-``
+```
 *Note: please read this topic to know how to request credentials http://forum.nolife-tv.com/showthread.php?t=25535*
 
 If you simply what to make an API call then, you can use any flavor of callAPI on the NLTAPI singleton:

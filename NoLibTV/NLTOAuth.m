@@ -18,36 +18,6 @@
 @end
 
 @implementation NLTOAuth
-/*
-
- L'authentification se fait via OAuth2.
- Un compte noco est obligatoire pour avoir une réponse de l'API.
- 
- Pour connecter un utilisateur, il faut le rediriger vers cette page :
- https://api.noco.tv/1.1/OAuth2/authorize.php?response_type=code&client_id=CLIENT_ID&state=STATE
- 
- Lorsqu'il se connecte, un code et le param' state sont renvoyés vers ta redirect_uri en GET, sous cette forme :
- http://REDIRECT_URI/?code=CODE&state=STATE
- 
- Ce code expire au bout de 30s.
- Il faut donc immédiatement récupérer un token d'accès et le stocker.
- Par ex :
- curl -u CLIENT_ID:CLIENT_SECRET https://api.noco.tv/1.1/OAuth2/token.php -d 'grant_type=authorization_code&code=CODE'
- 
- Le retour sera sous cette forme :
- {"access_token":"ACCESS_TOKEN","expires_in":3600,"token_type":"Bearer","scope":"noco_account","refresh_token":"REFRESH_TOKEN"}
- 
- C'est ce token qui permet à l'API de récupérer le compte noco identifié.
- 
- Quand le token d'accès expire, il faut en récupérer un nouveau.
- Pour ça, il faut utiliser le refresh_token reçu précédement.
- curl -u CLIENT_ID:CLIENT_SECRET https://api.noco.tv/1.1/OAuth2/token.php -d 'grant_type=refresh_token&refresh_token=REFRESH_TOKEN'
- 
- Le retour, c'est un nouveau access_token, mais aussi un nouveau refresh_token. ; )
- {"access_token":"NEW_ACCESS_TOKEN","expires_in":3600,"token_type":"Bearer","scope":"noco_account","refresh_token":"NEW_REFRESH_TOKEN"}
- 
- Et ainsi de suite... ; )
- */
 
 + (instancetype)sharedInstance{
     static NLTOAuth* _sharedInstance = nil;

@@ -7,7 +7,6 @@
 //
 
 #import "NLTAPI.h"
-#import "NLTOAuth.h"
 
 @interface NLTAPICallInfo : NSObject
 @property (retain,nonatomic) NSString* urlPart;
@@ -76,6 +75,18 @@
                 block(nil,error);
             }
         }else{
+            NLTAPICallInfo* callInfo = [[NLTAPICallInfo alloc] init];
+            callInfo.urlPart = urlPart;
+            callInfo.responseBlock = block;
+            callInfo.key = key;
+            if(cacheDurationSeconds>0){
+                callInfo.cacheValidityEndDate = [[NSDate date] dateByAddingTimeInterval:cacheDurationSeconds];
+            }
+            if([[self callInfoWithSameUrlPart:callInfo] count]>0){
+                //If a call for the same urlpart is pending, postpone the call (to mutualize calls)
+                [self.calls addObject:callInfo];
+                return;
+            }
             NSString* urlStr = urlPart;
             if([urlPart rangeOfString:NOCO_ENDPOINT].location == NSNotFound){
 
@@ -87,15 +98,11 @@
             }
             NSURLRequest* request = [[NLTOAuth sharedInstance] requestWithAccessTokenForURL:[NSURL URLWithString:urlStr]];
             NSURLConnection* connection = [NSURLConnection connectionWithRequest:request delegate:self];
+#ifdef DEBUG_NLT_CALL
+            NSLog(@"Call to %@",urlStr);
+#endif
             if(connection){
-                NLTAPICallInfo* callInfo = [[NLTAPICallInfo alloc] init];
-                callInfo.urlPart = urlPart;
-                callInfo.responseBlock = block;
-                callInfo.key = key;
                 callInfo.connection = connection;
-                if(cacheDurationSeconds>0){
-                    callInfo.cacheValidityEndDate = [[NSDate date] dateByAddingTimeInterval:cacheDurationSeconds];
-                }
                 [self.calls addObject:callInfo];
                 [connection start];
             }else{
@@ -106,6 +113,26 @@
             }
         }
     }];
+}
+
+- (NSArray*)callInfoWithSameUrlPart:(NLTAPICallInfo*)referenceInfo{
+    NSMutableArray* callInfos = [NSMutableArray array];
+    for (NLTAPICallInfo* info in self.calls) {
+        if(info.urlPart && [info.urlPart compare:referenceInfo.urlPart] == NSOrderedSame && info != referenceInfo){
+            [callInfos addObject:info];
+        }
+    }
+    return callInfos;
+}
+
+- (void)removeCallInfoWithSameUrlPart:(NLTAPICallInfo*)referenceInfo{
+    NSMutableArray* callInfos = [NSMutableArray array];
+    for (NLTAPICallInfo* info in self.calls) {
+        if(info.urlPart && [info.urlPart compare:referenceInfo.urlPart] == NSOrderedSame && info != referenceInfo){
+            [callInfos addObject:info];
+        }
+    }
+    [self.calls removeObjectsInArray:callInfos];
 }
 
 - (NLTAPICallInfo*)callInfoForConnection:(NSURLConnection*)connection {
@@ -179,19 +206,43 @@
             [self.cachedResults setObject:@{@"answer":answer,@"cacheValidityEndDate":info.cacheValidityEndDate} forKey:info.urlPart];
             [self saveCache];
         }
+        //Response to current block
         if(info.responseBlock){
             info.responseBlock(answer,nil);
         }
-    }else{
-        if(info.responseBlock){
-            if(jsonError){
-                info.responseBlock(nil, jsonError);
-            }else{
-                info.responseBlock(nil, [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Unable to parse answer"}]);
+        //Response to other related pending blocks
+        for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
+            if(otherInfo.responseBlock){
+                otherInfo.responseBlock(answer,nil);
             }
+        }
+    }else{
+        if(jsonError){
+            if(info.responseBlock){
+                info.responseBlock(nil, jsonError);
+            }
+            //Response to other related pending blocks
+            for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
+                if(otherInfo.responseBlock){
+                    otherInfo.responseBlock(nil, jsonError);
+                }
+            }
+        }else{
+            NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Unable to parse answer"}];
+            if(info.responseBlock){
+                info.responseBlock(nil, error);
+            }
+            //Response to other related pending blocks
+            for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
+                if(otherInfo.responseBlock){
+                    otherInfo.responseBlock(nil, error);
+                }
+            }
+
         }
     }
     [self.calls removeObject:info];
+    [self removeCallInfoWithSameUrlPart:info];
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
@@ -199,8 +250,27 @@
     if(info.responseBlock){
         info.responseBlock(nil, error);
     }
+    //Response to other related pending blocks
+    for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
+        if(otherInfo.responseBlock){
+            otherInfo.responseBlock(nil, error);
+        }
+    }
     [self.calls removeObject:info];
+    [self removeCallInfoWithSameUrlPart:info];
 }
 
+#pragma mark - Upper level call
+
+- (int)showsByPage{
+    return NLT_SHOWS_BY_PAGE;
+}
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock{
+    NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, NLT_SHOWS_BY_PAGE];
+    if(self.partnerKey){
+        urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
+    }
+    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:responseBlock withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+}
 
 @end

@@ -20,7 +20,7 @@
 {
     [super viewDidLoad];
     self.webview = [[UIWebView alloc] initWithFrame:self.view.bounds];
-    NSString* urlStr = [NSString stringWithFormat:@"https://api.noco.tv/1.1/OAuth2/authorize.php?response_type=code&client_id=%@&state=STATE",[NLTOAuth sharedInstance].clientId];
+    NSString* urlStr = [NSString stringWithFormat:@"%@/OAuth2/authorize.php?response_type=code&client_id=%@&state=STATE",NOCO_ENDPOINT,[NLTOAuth sharedInstance].clientId];
     [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
     self.edgesForExtendedLayout = UIRectEdgeNone;
     self.webview.delegate = self;

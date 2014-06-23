@@ -8,14 +8,14 @@
 
 #import <Foundation/Foundation.h>
 
-#ifndef NLTDefines
-typedef void (^NLTCallResponseBlock)(id result, NSError *error);
-#define NOCO_ENDPOINT @"https://api.noco.tv/1.1"
-#define NLTDefines
-#endif
+#import "NLTOAuth.h"
+
+#define NLT_SHOWS_BY_PAGE 40
+#define NLT_SHOWS_CACHE_DURATION 60
 
 
 @interface NLTAPI : NSObject<NSURLConnectionDataDelegate>
+@property (retain, nonatomic)NSString* partnerKey;
 + (instancetype)sharedInstance;
 /*!
  @method    callAPI:withResultBlock:withKey:withCacheDuration:
@@ -45,4 +45,8 @@ typedef void (^NLTCallResponseBlock)(id result, NSError *error);
 
 //Remove a cached result
 - (void)invalidateCache:(NSString*)urlPart;
+
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock;
+- (int)showsByPage;
+
 @end

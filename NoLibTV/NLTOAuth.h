@@ -14,9 +14,11 @@
 #error NoLibTV needs ARC support. In a non ARC project, add -fobjc-arc flag for NLT* files
 #endif
 
-#ifndef NLTAuthResponseBlockType
+#ifndef NLTDefines
 typedef void (^NLTAuthResponseBlock)(NSError *error);
-#define NLTAuthResponseBlockType
+typedef void (^NLTCallResponseBlock)(id result, NSError *error);
+#define NOCO_ENDPOINT @"https://api.noco.tv/1.1"
+#define NLTDefines
 #endif
 
 @interface NLTOAuth : NSObject <NSURLConnectionDataDelegate>
@@ -34,8 +36,12 @@ typedef void (^NLTAuthResponseBlock)(NSError *error);
 + (instancetype)sharedInstance;
 //Initialize the singleton with Noco dev credentials
 - (void)configureWithClientId:(NSString*)clientId withClientSecret:(NSString*)clientsecret withRedirectUri:(NSString*)redirectUri;
-//Return true if the access token should be valid
+
+//Return true if the access token is currently valid (won't use refresh token availability, but will procur immediate response)
 - (BOOL)isAuthenticated;
+
+//Return true in the block either if access token is valid directly or after using a refresh token first
+- (void)isAuthenticatedAfterRefreshTokenUse:(void (^)(BOOL authenticated)) responseBlock;
 
 /*
  * Launch the authentification process if needed (will display a webview overlay if needed), 

@@ -50,4 +50,10 @@ You can request an authentification will NLTOAuth authenticate, which will displ
 Base64, Copyright (C) 2012 Charcoal Design
 https://github.com/nicklockwood/Base64
 
+#Changelog 
+0.5:
+- handle already presented modal view controller when trying to present OAuth webview
+- added isAuthenticatedAfterRefreshTokenUse: to include refresh token check (asyn response using blocks)
+- simultaneous calls to the same API now wait for first call result instead of calling the same API
+
 

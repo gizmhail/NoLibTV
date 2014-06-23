@@ -78,6 +78,44 @@
     return FALSE;
 }
 
+
+- (void)isAuthenticatedAfterRefreshTokenUse:(void (^)(BOOL authenticated)) responseBlock{
+    if([self isAuthenticated]){
+        //Return proper auth
+        if(responseBlock){
+            responseBlock(TRUE);
+        }
+    }else{
+        //Checking if a refresh token might hel us here
+        if(self.oauthRefreshToken){
+            __weak NLTOAuth* weakSelf = self;
+            self.authResponseBlock = ^(NSError *error) {
+                //Return error
+                if(error){
+                    if(responseBlock){
+                        responseBlock(FALSE);
+                    }
+                }
+                if([weakSelf isAuthenticated]){
+                    //Return proper auth
+                    if(responseBlock){
+                        responseBlock(TRUE);
+                    }
+                }else{
+                    //Was tring to use a refresh token which was probably outdated
+                    responseBlock(FALSE);
+                }
+            };
+            [self fetchAccessTokenFromRefreshToken];
+        }else{
+            if(responseBlock){
+                responseBlock(FALSE);
+            }
+        }
+    }
+}
+
+
 - (void)disconnect{
     self.oauthCode = nil;
     self.oauthAccessToken = nil;
@@ -94,7 +132,24 @@
             responseBlock(nil);
         }
     }else{
-        self.authResponseBlock = responseBlock;
+        __weak NLTOAuth* weakSelf = self;
+        self.authResponseBlock = ^(NSError *error) {
+            //Return error
+            if(error){
+                if(responseBlock){
+                    responseBlock(error);
+                }
+            }
+            if([weakSelf isAuthenticated]){
+                //Return proper auth
+                if(responseBlock){
+                    responseBlock(nil);
+                }
+            }else{
+                //Was tring to use a refresh token which was probably outdated. Switch to normal login with webview
+                [weakSelf displayOAuthControllerOverlay];
+            }
+        };
         if(self.oauthRefreshToken){
             [self fetchAccessTokenFromRefreshToken];
         }else{
@@ -105,8 +160,11 @@
 
 - (void)displayOAuthControllerOverlay{
     self.oauthController = [[NLTOAuthController alloc] init];
-#warning TODO Handle already present modal view
     UIViewController* controller = [[[UIApplication sharedApplication] keyWindow] rootViewController];
+    //Handle already present modal view
+    if(controller.presentedViewController){
+        controller = controller.presentedViewController;
+    }
     [self requestAccessTokenWebviewFrom:controller];
 }
 
@@ -151,8 +209,8 @@
 #warning Return error
     }
     
-    
-    NSURL *url = [NSURL URLWithString:@"https://api.noco.tv/1.1/OAuth2/token.php"];
+    NSString* urlStr = [NSString stringWithFormat:@"%@/OAuth2/token.php", NOCO_ENDPOINT];
+    NSURL *url = [NSURL URLWithString:urlStr];
     NSMutableURLRequest *request = [[NSMutableURLRequest alloc] initWithURL:url];
     NSString *loginString = [NSString stringWithFormat:@"%@:%@",self.clientId,self.clientSecret];
     //When limiting to iOS7 only, remove Base64 and use this :
@@ -232,8 +290,11 @@
     }else{
         //Failure
         if(refreshTokenTry){
-            //Was tring to use a refresh token - was probably outdated. Switch to normal login with webview
-            [self displayOAuthControllerOverlay];
+            //Was tring to use a refresh token - was probably outdated. The problem will be handled in the authResponseBlock (either switch to normal login with webview, or handle differently)
+            if(self.authResponseBlock){
+                self.authResponseBlock(nil);
+                self.authResponseBlock = nil;
+            }
         }else{
             //Unable to login
             if(self.authResponseBlock){

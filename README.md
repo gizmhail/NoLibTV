@@ -51,6 +51,7 @@ Base64, Copyright (C) 2012 Charcoal Design
 https://github.com/nicklockwood/Base64
 
 #Changelog 
+0.6
 0.5:
 - handle already presented modal view controller when trying to present OAuth webview
 - added isAuthenticatedAfterRefreshTokenUse: to include refresh token check (asyn response using blocks)

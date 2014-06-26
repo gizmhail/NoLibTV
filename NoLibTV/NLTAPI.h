@@ -1,6 +1,6 @@
 //
 //  NLTAPI.h
-//  TestNoco
+//  NoLibTV
 //
 //  Created by Sébastien POIVRE on 19/06/2014.
 //  Copyright (c) 2014 Sébastien Poivre. All rights reserved.
@@ -9,13 +9,15 @@
 #import <Foundation/Foundation.h>
 
 #import "NLTOAuth.h"
+#import "NLTShow.h"
 
 #define NLT_SHOWS_BY_PAGE 40
-#define NLT_SHOWS_CACHE_DURATION 60
+#define NLT_SHOWS_CACHE_DURATION 60*3
 
 
 @interface NLTAPI : NSObject<NSURLConnectionDataDelegate>
 @property (retain, nonatomic)NSString* partnerKey;
+@property (retain,nonatomic) NSMutableDictionary* showsById; // Already fetched shows
 + (instancetype)sharedInstance;
 /*!
  @method    callAPI:withResultBlock:withKey:withCacheDuration:
@@ -46,7 +48,10 @@
 //Remove a cached result
 - (void)invalidateCache:(NSString*)urlPart;
 
+//Response block  will contain an array of NLTShow objects
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock;
+
+//Tells how much shows we request by page in calls
 - (int)showsByPage;
 
 @end

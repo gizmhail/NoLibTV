@@ -1,12 +1,13 @@
 //
 //  NLTAPI.m
-//  TestNoco
+//  NoLibTV
 //
 //  Created by Sébastien POIVRE on 19/06/2014.
 //  Copyright (c) 2014 Sébastien Poivre. All rights reserved.
 //
 
 #import "NLTAPI.h"
+#import "NLTShow.h"
 
 @interface NLTAPICallInfo : NSObject
 @property (retain,nonatomic) NSString* urlPart;
@@ -43,6 +44,7 @@
     if(self = [super init]){
         self.calls = [NSMutableArray array];
         self.cachedResults = [NSMutableDictionary dictionary];
+        self.showsById = [NSMutableDictionary dictionary];
         [self loadCache];
     }
     return self;
@@ -265,12 +267,33 @@
 - (int)showsByPage{
     return NLT_SHOWS_BY_PAGE;
 }
+
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock{
     NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, NLT_SHOWS_BY_PAGE];
     if(self.partnerKey){
         urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
     }
-    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:responseBlock withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            NSMutableArray* shows = [NSMutableArray array];
+            if([result isKindOfClass:[NSArray class]]){
+                for (NSDictionary* showInfo in result) {
+                    NLTShow* show = [[NLTShow alloc] initWithDictionnary:showInfo];
+                    if(show.id_show){
+                        [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
+                    }
+                    [shows addObject:show];
+                }
+            }
+            if(responseBlock){
+                responseBlock(shows, nil);
+            }
+        }
+    } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
 }
 
 @end

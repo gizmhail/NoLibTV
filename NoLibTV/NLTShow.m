@@ -11,6 +11,28 @@
 
 @implementation NLTShow
 
+#pragma mark - Formating
+
+- (NSString*)durationString{
+    NSString* durationStr = nil;
+    if(self.duration_ms){
+        int seconds = self.duration_ms / 1000;
+        int hours = seconds/3600;
+        seconds -= hours*3600;
+        int min = seconds/60;
+        seconds -= min*60;
+        if(hours>0){
+            durationStr = [NSString stringWithFormat:@"%ih%i",hours,min];
+        }else if(min>5){
+            durationStr = [NSString stringWithFormat:@"%imin",min];
+        }else if(min>0){
+            durationStr = [NSString stringWithFormat:@"%imin%i",min,seconds];
+        }else{
+            durationStr = [NSString stringWithFormat:@"%isec",seconds];
+        }
+    }
+    return durationStr;
+}
 #pragma - KVO methods
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary{
     [self setValuesForKeysWithDictionary:dictionary];

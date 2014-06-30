@@ -82,4 +82,6 @@
 
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary;
 
+- (NSString*)durationString;
+
 @end

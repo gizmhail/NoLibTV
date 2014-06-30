@@ -60,7 +60,11 @@
 }
 
 - (void)callAPI:(NSString*)urlPart withResultBlock:(NLTCallResponseBlock)block withKey:(id)key withCacheDuration:(double)cacheDurationSeconds{
-    if([self.cachedResults objectForKey:urlPart]){
+    [self callAPI:urlPart withResultBlock:block withKey:key withCacheDuration:cacheDurationSeconds withMethod:nil withBody:nil withContentType:nil];
+}
+
+- (void)callAPI:(NSString*)urlPart withResultBlock:(NLTCallResponseBlock)block withKey:(id)key withCacheDuration:(double)cacheDurationSeconds withMethod:(NSString*)method withBody:(NSData*)body withContentType:(NSString*)contentType{
+    if([self.cachedResults objectForKey:urlPart]&&!method&&!body){
         NSDate* cacheValidityEndDate = [[self.cachedResults objectForKey:urlPart] objectForKey:@"cacheValidityEndDate"];
         if([[NSDate date] compare:cacheValidityEndDate]==NSOrderedAscending){
             //Result is cached and still valid
@@ -81,7 +85,7 @@
             callInfo.urlPart = urlPart;
             callInfo.responseBlock = block;
             callInfo.key = key;
-            if(cacheDurationSeconds>0){
+            if(cacheDurationSeconds>0&&!method&&!body){
                 callInfo.cacheValidityEndDate = [[NSDate date] dateByAddingTimeInterval:cacheDurationSeconds];
             }
             if([[self callInfoWithSameUrlPart:callInfo] count]>0){
@@ -98,7 +102,20 @@
                     urlStr = [NSString stringWithFormat:@"%@%@",NOCO_ENDPOINT,urlPart];
                 }
             }
-            NSURLRequest* request = [[NLTOAuth sharedInstance] requestWithAccessTokenForURL:[NSURL URLWithString:urlStr]];
+            NSMutableURLRequest* request = [[NLTOAuth sharedInstance] requestWithAccessTokenForURL:[NSURL URLWithString:urlStr]];
+            if(method){
+                [request setHTTPMethod:method];
+            }
+            if(body){
+                [request setHTTPBody:body];
+            }
+            if(contentType){
+                //Bug fix: http://iphonedevelopment.blogspot.fr/2008/06/http-put-and-nsmutableurlrequest.html?m=1
+                [request setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
+                //[request setValue:contentType forHTTPHeaderField:@"Content-Type"];
+                [request setValue:contentType forHTTPHeaderField:@"Accept"];
+
+            }
             NSURLConnection* connection = [NSURLConnection connectionWithRequest:request delegate:self];
 #ifdef DEBUG_NLT_CALL
             NSLog(@"Call to %@",urlStr);
@@ -165,6 +182,22 @@
     [self saveCache];
 }
 
+- (void)invalidateCacheWithPrefix:(NSString*)prefix{
+    NSMutableArray* keyToRemove = [NSMutableArray array];
+    for (NSString* urlPart in [self.cachedResults allKeys]) {
+        if([urlPart hasPrefix:prefix]){
+            [keyToRemove addObject:urlPart];
+        }
+    }
+    [self.cachedResults removeObjectsForKeys:keyToRemove];
+    [self saveCache];
+}
+
+- (void)invalidateAllCache{
+    [self.cachedResults removeAllObjects];
+    [self saveCache];
+}
+
 #pragma mark cache
 
 - (void)loadCache{
@@ -209,42 +242,58 @@
             [self saveCache];
         }
         //Response to current block
+        NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
         if(info.responseBlock){
-            info.responseBlock(answer,nil);
+            [relatedCallInfoForCallback addObject:info];
         }
         //Response to other related pending blocks
         for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
             if(otherInfo.responseBlock){
-                otherInfo.responseBlock(answer,nil);
+                [relatedCallInfoForCallback addObject:otherInfo];
             }
+        }
+        //We cleanup calls before using callbacks (in case the callbacks user want to make the same call, we don't want it to be prevented by the callInfoWithSameUrlPart check)
+        [self.calls removeObject:info];
+        [self removeCallInfoWithSameUrlPart:info];
+        for (NLTAPICallInfo* relatedInfo in relatedCallInfoForCallback) {
+            relatedInfo.responseBlock(answer,nil);
         }
     }else{
         if(jsonError){
+            NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
             if(info.responseBlock){
-                info.responseBlock(nil, jsonError);
+                [relatedCallInfoForCallback addObject:info];
             }
             //Response to other related pending blocks
             for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
                 if(otherInfo.responseBlock){
-                    otherInfo.responseBlock(nil, jsonError);
+                    [relatedCallInfoForCallback addObject:otherInfo];
                 }
             }
+            for (NLTAPICallInfo* relatedInfo in relatedCallInfoForCallback) {
+                relatedInfo.responseBlock(nil, jsonError);
+            }
+            [self.calls removeObject:info];
+            [self removeCallInfoWithSameUrlPart:info];
         }else{
             NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Unable to parse answer"}];
+            NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
             if(info.responseBlock){
-                info.responseBlock(nil, error);
+                [relatedCallInfoForCallback addObject:info];
             }
             //Response to other related pending blocks
             for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
                 if(otherInfo.responseBlock){
-                    otherInfo.responseBlock(nil, error);
+                    [relatedCallInfoForCallback addObject:otherInfo];
                 }
             }
-
+            for (NLTAPICallInfo* relatedInfo in relatedCallInfoForCallback) {
+                relatedInfo.responseBlock(nil, error);
+            }
+            [self.calls removeObject:info];
+            [self removeCallInfoWithSameUrlPart:info];
         }
     }
-    [self.calls removeObject:info];
-    [self removeCallInfoWithSameUrlPart:info];
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
@@ -264,11 +313,45 @@
 
 #pragma mark - Upper level call
 
+- (void)showWithId:(int)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    if([self.showsById objectForKey:[NSNumber numberWithInteger:showId]]){
+        if(responseBlock){
+            responseBlock([self.showsById objectForKey:[NSNumber numberWithInteger:showId]], nil);
+        }
+    }else{
+        NSString* urlStr = [NSString stringWithFormat:@"shows/by_id/%i", showId];
+        [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+            if(error){
+                if(responseBlock){
+                    responseBlock(nil, error);
+                }
+            }else{
+                NLTShow* requestedShow = nil;
+                if([result isKindOfClass:[NSArray class]]){
+                    for (NSDictionary* showInfo in result) {
+                        NLTShow* show = [[NLTShow alloc] initWithDictionnary:showInfo];
+                        if(show.id_show){
+                            [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
+                        }
+                        if(showId == show.id_show){
+                            requestedShow = show;
+                        }
+                    }
+                }
+                if(responseBlock){
+                    responseBlock(requestedShow, nil);
+                }
+            }
+        } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+    }
+}
+#pragma mark Recent shows
+
 - (int)showsByPage{
     return NLT_SHOWS_BY_PAGE;
 }
 
-- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock{
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
     NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, NLT_SHOWS_BY_PAGE];
     if(self.partnerKey){
         urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
@@ -294,6 +377,189 @@
             }
         }
     } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+}
+
+#pragma mark Queue list
+
+//Raw call : usually not meaned to be called directly, so not publically exposed
+- (void)queueListWithResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* urlStr = @"users/queue_list";
+    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            NSDictionary* watchListQueue = nil;
+            if([result isKindOfClass:[NSArray class]]){
+                BOOL isWatchlistSure = FALSE;
+                for (NSDictionary* queueInfo in result) {
+                    if([[queueInfo objectForKey:@"playlist_title"] isKindOfClass:[NSString class]] && [(NSString*)[queueInfo objectForKey:@"playlist_title"] compare:@"File d'attente"]==NSOrderedSame){
+                        watchListQueue = queueInfo;
+                        isWatchlistSure = TRUE;
+                    }else if(!isWatchlistSure){
+                        watchListQueue = queueInfo;
+                    }
+                }
+            }
+            if(responseBlock){
+#ifdef DEBUG
+                NSLog(@"Queue list %@",watchListQueue);
+#endif
+                responseBlock(watchListQueue, nil);
+            }
+        }
+    } withKey:self withCacheDuration:NLT_QUEUELIST_CACHE_DURATION];
+}
+
+- (void)queueListShowIdsWithResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [[NLTAPI sharedInstance] queueListWithResultBlock:^(NSDictionary* queueList, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            NSMutableArray* shows = [NSMutableArray array];
+            if([queueList objectForKey:@"playlist"]){
+                if([[queueList objectForKey:@"playlist"] isKindOfClass:[NSString class]]){
+                    NSArray* showStrs = [(NSString*)[queueList objectForKey:@"playlist"] componentsSeparatedByString:@","];
+                    for (NSString* showStr in showStrs) {
+                        if([showStr compare:@""]!=NSOrderedSame){
+                            [shows addObject:[NSNumber numberWithInteger:[showStr integerValue]]];
+                        }
+                    }
+                }else if([[queueList objectForKey:@"playlist"] isKindOfClass:[NSNumber class]]){
+                    [shows addObject:(NSNumber*)[queueList objectForKey:@"playlist"]];
+                }
+            }
+            if(responseBlock){
+                responseBlock(shows, nil);
+            }
+        }
+    } withKey:self];
+}
+
+- (void)isInQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [self queueListShowIdsWithResultBlock:^(NSArray* result, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            BOOL present = [result containsObject:[NSNumber numberWithInteger:show.id_show]];
+            if(responseBlock){
+                responseBlock([NSNumber numberWithBool:present], nil);
+            }
+        }
+    } withKey:key];
+}
+
+- (void)addToQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    //We invalidate the cache as this method need fresh data and will lead to changed data
+    [self invalidateCache:@"users/queue_list"];
+    [self queueListShowIdsWithResultBlock:^(NSArray* result, NSError *error) {
+        [self invalidateCache:@"users/queue_list"];
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            BOOL present = [result containsObject:[NSNumber numberWithInteger:show.id_show]];
+            if(!present){
+                //Add to queue list
+                NSString* showIdStr = [NSString stringWithFormat:@"%i",show.id_show];
+                NSMutableArray* shows = [NSMutableArray array];
+                for (NSNumber* watchListShowId in result) {
+                    [shows addObject:[NSString stringWithFormat:@"%@", watchListShowId]];
+                }
+                [shows addObject:showIdStr];
+
+                NSString* newQueueListStr = [shows componentsJoinedByString:@","];
+                newQueueListStr = [NSString stringWithFormat:@"[%@]",newQueueListStr];
+                NSString* urlStr = @"users/queue_list";
+                [self callAPI:urlStr withResultBlock:responseBlock withKey:key withCacheDuration:0 withMethod:@"PUT" withBody:[newQueueListStr dataUsingEncoding:NSUTF8StringEncoding] withContentType:@"application/json"];
+            }else{
+                //Already in queueList
+                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Already in queue list"}];
+                if(responseBlock){
+                    responseBlock(nil, error);
+                }
+            }
+        }
+    } withKey:key];
+}
+
+- (void)removeFromQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [self invalidateCache:@"users/queue_list"];
+    [self queueListShowIdsWithResultBlock:^(NSArray* result, NSError *error) {
+        [self invalidateCache:@"users/queue_list"];
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            BOOL present = [result containsObject:[NSNumber numberWithInteger:show.id_show]];
+            if(present){
+                //Remove from queue list
+                NSMutableArray* shows = [NSMutableArray array];
+                for (NSNumber* watchListShowId in result) {
+                    if([watchListShowId integerValue]!=show.id_show){
+                        [shows addObject:[NSString stringWithFormat:@"%@", watchListShowId]];
+                    }
+                }
+                NSString* urlStr = @"users/queue_list";
+                if([shows count]>0){
+                    NSString* newQueueListStr = [shows componentsJoinedByString:@","];
+                    newQueueListStr = [NSString stringWithFormat:@"[%@]",newQueueListStr];
+                    [self callAPI:urlStr withResultBlock:responseBlock withKey:key withCacheDuration:0 withMethod:@"PUT" withBody:[newQueueListStr dataUsingEncoding:NSUTF8StringEncoding] withContentType:@"application/json"];
+                }else{
+                    [self callAPI:urlStr withResultBlock:responseBlock withKey:key withCacheDuration:0 withMethod:@"DELETE" withBody:nil withContentType:@"application/json"];
+                }
+            }else{
+                //Already in queueList
+                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Not in queue list"}];
+                if(responseBlock){
+                    responseBlock(nil, error);
+                }
+            }
+        }
+    } withKey:key];
+}
+
+
+#pragma mark Show read status
+
+- (void)setReadStatus:(BOOL)isRead forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* urlStr = [NSString stringWithFormat:@"shows/%i/mark_read",show.id_show];
+    //We're changing info for a show : calls cached for shows are reliable anymore
+    [self invalidateCacheWithPrefix:@"shows"];
+    NSString* method = @"POST";
+    if(!isRead){
+        method = @"DELETE";
+    }
+    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(id result, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            if([result isKindOfClass:[NSArray class]]){
+                for (NSDictionary* readInfo in result) {
+                    if([readInfo objectForKey:@"id_show"]&&[readInfo objectForKey:@"id_show"]!=[NSNull null]&&[[readInfo objectForKey:@"id_show"] integerValue]==show.id_show){
+                        if([readInfo objectForKey:@"mark_read"]&&[readInfo objectForKey:@"mark_read"]!=[NSNull null]){
+                            show.mark_read = [[readInfo objectForKey:@"mark_read"] boolValue];
+                        }
+                    }
+                }
+            }
+            if(responseBlock){
+#ifdef DEBUG
+                NSLog(@"Result %@",result);
+#endif
+                responseBlock(result, nil);
+            }
+        }
+    } withKey:key withCacheDuration:0 withMethod:method withBody:nil withContentType:nil];
 }
 
 @end

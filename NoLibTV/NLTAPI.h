@@ -12,8 +12,14 @@
 #import "NLTShow.h"
 
 #define NLT_SHOWS_BY_PAGE 40
-#define NLT_SHOWS_CACHE_DURATION 60*3
 
+#define NLT_QUEUELIST_CACHE_DURATION 60
+#ifdef DEBUG
+//Debug mode
+#define NLT_SHOWS_CACHE_DURATION 60*30
+#else
+#define NLT_SHOWS_CACHE_DURATION 60*3
+#endif
 
 @interface NLTAPI : NSObject<NSURLConnectionDataDelegate>
 @property (retain, nonatomic)NSString* partnerKey;
@@ -47,11 +53,25 @@
 
 //Remove a cached result
 - (void)invalidateCache:(NSString*)urlPart;
+- (void)invalidateCacheWithPrefix:(NSString*)prefix;
+- (void)invalidateAllCache;
+
+- (void)showWithId:(int)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
 //Response block  will contain an array of NLTShow objects
-- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock;
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
 //Tells how much shows we request by page in calls
 - (int)showsByPage;
+
+//Watchlist
+- (void)isInQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)queueListShowIdsWithResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)addToQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)removeFromQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+
+//Readlist
+- (void)setReadStatus:(BOOL)isRead forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+
 
 @end

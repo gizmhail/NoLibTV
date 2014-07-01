@@ -45,6 +45,7 @@
         self.calls = [NSMutableArray array];
         self.cachedResults = [NSMutableDictionary dictionary];
         self.showsById = [NSMutableDictionary dictionary];
+        self.familiesById = [NSMutableDictionary dictionary];
         [self loadCache];
     }
     return self;
@@ -207,6 +208,18 @@
 
     if(cache){
         self.cachedResults = [NSMutableDictionary dictionaryWithDictionary:cache];
+        NSMutableArray* outdatedResultKey = [NSMutableArray array];
+        for (NSString* urlPart in [self.cachedResults allKeys]) {
+            NSDate* cacheValidityEndDate = [[self.cachedResults objectForKey:urlPart] objectForKey:@"cacheValidityEndDate"];
+            if([[NSDate date] compare:cacheValidityEndDate]!=NSOrderedAscending){
+                //Result not valid anymore: purging
+                [outdatedResultKey addObject:urlPart];
+            }
+            if([outdatedResultKey count]>0){
+                [self.cachedResults removeObjectsForKeys:outdatedResultKey];
+                [self saveCache];
+            }
+        }
     }
 }
 
@@ -313,13 +326,13 @@
 
 #pragma mark - Upper level call
 
-- (void)showWithId:(int)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+- (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
     if([self.showsById objectForKey:[NSNumber numberWithInteger:showId]]){
         if(responseBlock){
             responseBlock([self.showsById objectForKey:[NSNumber numberWithInteger:showId]], nil);
         }
     }else{
-        NSString* urlStr = [NSString stringWithFormat:@"shows/by_id/%i", showId];
+        NSString* urlStr = [NSString stringWithFormat:@"shows/by_id/%li", showId];
         [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
             if(error){
                 if(responseBlock){
@@ -345,14 +358,49 @@
         } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
     }
 }
-#pragma mark Recent shows
 
-- (int)showsByPage{
+
+- (void)familyWithId:(long)familyId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    if([self.familiesById objectForKey:[NSNumber numberWithInteger:familyId]]){
+        if(responseBlock){
+            responseBlock([self.showsById objectForKey:[NSNumber numberWithInteger:familyId]], nil);
+        }
+    }else{
+        NSString* urlStr = [NSString stringWithFormat:@"families/by_id/%li", familyId];
+        [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+            if(error){
+                if(responseBlock){
+                    responseBlock(nil, error);
+                }
+            }else{
+                NLTFamily* requestedFamily = nil;
+                if([result isKindOfClass:[NSArray class]]){
+                    for (NSDictionary* familyInfo in result) {
+                        NLTFamily* family = [[NLTFamily alloc] initWithDictionnary:familyInfo];
+                        if(family.id_family){
+                            [self.familiesById setObject:family forKey:[NSNumber numberWithInt:family.id_family]];
+                        }
+                        if(familyId == family.id_family){
+                            requestedFamily = family;
+                        }
+                    }
+                }
+                if(responseBlock){
+                    responseBlock(requestedFamily, nil);
+                }
+            }
+        } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+    }
+}
+
+#pragma mark Search/recent shows
+
+- (int)resultsByPage{
     return NLT_SHOWS_BY_PAGE;
 }
 
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
-    NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, NLT_SHOWS_BY_PAGE];
+    NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, [self resultsByPage]];
     if(self.partnerKey){
         urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
     }
@@ -374,6 +422,28 @@
             }
             if(responseBlock){
                 responseBlock(shows, nil);
+            }
+        }
+    } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+}
+
+- (void)search:(NSString*)query atPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* urlStr = [NSString stringWithFormat:@"search?query=%@&page=%i&elements_per_page=%i", [query stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding] ,page, [self resultsByPage]];
+    if(self.partnerKey){
+        urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
+    }
+    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }else{
+            NSArray* results = [NSArray array];
+            if([result isKindOfClass:[NSArray class]]){
+                results = [NSArray arrayWithArray:result];
+            }
+            if(responseBlock){
+                responseBlock(results, nil);
             }
         }
     } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
@@ -403,9 +473,6 @@
                 }
             }
             if(responseBlock){
-#ifdef DEBUG
-                NSLog(@"Queue list %@",watchListQueue);
-#endif
                 responseBlock(watchListQueue, nil);
             }
         }

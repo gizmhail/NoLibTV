@@ -10,6 +10,7 @@
 
 #import "NLTOAuth.h"
 #import "NLTShow.h"
+#import "NLTFamily.h"
 
 #define NLT_SHOWS_BY_PAGE 40
 
@@ -24,6 +25,7 @@
 @interface NLTAPI : NSObject<NSURLConnectionDataDelegate>
 @property (retain, nonatomic)NSString* partnerKey;
 @property (retain,nonatomic) NSMutableDictionary* showsById; // Already fetched shows
+@property (retain,nonatomic) NSMutableDictionary* familiesById; // Already fetched families
 + (instancetype)sharedInstance;
 /*!
  @method    callAPI:withResultBlock:withKey:withCacheDuration:
@@ -56,13 +58,14 @@
 - (void)invalidateCacheWithPrefix:(NSString*)prefix;
 - (void)invalidateAllCache;
 
-- (void)showWithId:(int)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)familyWithId:(long)familyId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
 //Response block  will contain an array of NLTShow objects
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
-//Tells how much shows we request by page in calls
-- (int)showsByPage;
+//Tells how much shows/famillies we request by page in calls
+- (int)resultsByPage;
 
 //Watchlist
 - (void)isInQueueList:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
@@ -73,5 +76,7 @@
 //Readlist
 - (void)setReadStatus:(BOOL)isRead forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
+//Search
+- (void)search:(NSString*)query atPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
 @end

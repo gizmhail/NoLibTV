@@ -63,6 +63,7 @@
 
 //Response block  will contain an array of NLTShow objects
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withKey:(id)key;
 
 //Tells how much shows/famillies we request by page in calls
 - (int)resultsByPage;

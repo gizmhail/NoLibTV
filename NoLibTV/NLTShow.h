@@ -79,6 +79,12 @@
 @property (retain, nonatomic) NSString* mosaique;
 @property (assign, nonatomic) int access_show;
 @property (retain, nonatomic) NSString* access_type;
+@property (retain, nonatomic) NSArray* qualities;
+@property (retain, nonatomic) NSArray* qualities_languages;
+@property (retain, nonatomic) NSArray* languages;
+@property (retain, nonatomic) NSArray* audio_languages;
+@property (retain, nonatomic) NSArray* full_audio_languages; // type unsure (no value seen)
+@property (retain, nonatomic) NSArray* full_video_languages; // type unsure (no value seen)
 
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary;
 

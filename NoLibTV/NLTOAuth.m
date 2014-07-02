@@ -89,7 +89,14 @@
         //Checking if a refresh token might hel us here
         if(self.oauthRefreshToken){
             __weak NLTOAuth* weakSelf = self;
+            NLTAuthResponseBlock previousblock = nil;
+            if(self.authResponseBlock){
+                previousblock = self.authResponseBlock;
+            }
             self.authResponseBlock = ^(NSError *error) {
+                if(previousblock){
+                    previousblock(error);
+                }
                 //Return error
                 if(error){
                     if(responseBlock){
@@ -133,7 +140,14 @@
         }
     }else{
         __weak NLTOAuth* weakSelf = self;
+        NLTAuthResponseBlock previousblock = nil;
+        if(self.authResponseBlock){
+            previousblock = self.authResponseBlock;
+        }
         self.authResponseBlock = ^(NSError *error) {
+            if(previousblock){
+                previousblock(error);
+            }
             //Return error
             if(error){
                 if(responseBlock){
@@ -240,10 +254,26 @@
 
 - (void)saveOAuthInfo{
     NSUserDefaults* settings = [NSUserDefaults standardUserDefaults];
-    if(self.oauthAccessToken) [settings setObject:self.oauthAccessToken forKey:@"NLTOAuth_oauthAccessToken"];
-    if(self.oauthRefreshToken) [settings setObject:self.oauthRefreshToken forKey:@"NLTOAuth_oauthRefreshToken"];
-    if(self.oauthExpirationDate) [settings setObject:self.oauthExpirationDate forKey:@"NLTOAuth_oauthExpirationDate"];
-    if(self.oauthTokenType) [settings setObject:self.oauthTokenType forKey:@"NLTOAuth_oauthTokenType"];
+    if(self.oauthAccessToken){
+        [settings setObject:self.oauthAccessToken forKey:@"NLTOAuth_oauthAccessToken"];
+    }else{
+        [settings removeObjectForKey:@"NLTOAuth_oauthAccessToken"];
+    }
+    if(self.oauthRefreshToken) {
+        [settings setObject:self.oauthRefreshToken forKey:@"NLTOAuth_oauthRefreshToken"];
+    }else{
+        [settings removeObjectForKey:@"NLTOAuth_oauthRefreshToken"];
+    }
+    if(self.oauthExpirationDate) {
+        [settings setObject:self.oauthExpirationDate forKey:@"NLTOAuth_oauthExpirationDate"];
+    }else{
+        [settings removeObjectForKey:@"NLTOAuth_oauthExpirationDate"];
+    }
+    if(self.oauthTokenType) {
+        [settings setObject:self.oauthTokenType forKey:@"NLTOAuth_oauthTokenType"];
+    }else{
+        [settings removeObjectForKey:@"NLTOAuth_oauthTokenType"];
+    }
     [settings synchronize];
 }
 

@@ -400,9 +400,16 @@
 }
 
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [self showsAtPage:page withResultBlock:responseBlock withFamilyKey:nil withKey:key];
+}
+
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withKey:(id)key{
     NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, [self resultsByPage]];
     if(self.partnerKey){
         urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
+    }
+    if(familyKey){
+        urlStr = [urlStr stringByAppendingFormat:@"&family_key=%@", familyKey];
     }
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
         if(error){

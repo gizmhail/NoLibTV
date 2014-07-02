@@ -47,10 +47,29 @@
     return self;
 }
 
+-(void)setValue:(id)value forKey:(NSString *)key{
+    //The API can return String instead of arrays if it contains only one value
+    if([@[@"qualities", @"qualities_languages", @"languages", @"audio_languages", @"video_languages",@"full_audio_languages",@"full_video_Langagues"] containsObject:key]){
+        if(![value isKindOfClass:[NSArray class]]){
+            if([value isKindOfClass:[NSString class]]){
+                value = [NSArray arrayWithObject:value];
+            }else{
+                value = nil;
+            }
+        }
+    }
+    [super setValue:value forKey:key];
+}
 -(void)setValue:(id)value forUndefinedKey:(NSString *)key{
+    if([@[@"qualities", @"qualities_languages", @"languages", @"audio_languages", @"video_languages",@"full_audio_languages",@"full_video_Langagues"] containsObject:key]){
+        if([value isKindOfClass:[NSNull class]]){
+            [self setValue:nil forKey:key];
+        }
+    }else{
 #ifdef DEBUG
-    NSLog(@"Unexpected value %@ for key %@",value, key);
+        NSLog(@"Unexpected value %@ for key %@",value, key);
 #endif
+    }
 }
 
 -(void)setNilValueForKey:(NSString *)key{

@@ -85,6 +85,7 @@
 @property (retain, nonatomic) NSArray* audio_languages;
 @property (retain, nonatomic) NSArray* full_audio_languages; // type unsure (no value seen)
 @property (retain, nonatomic) NSArray* full_video_languages; // type unsure (no value seen)
+@property (retain, nonatomic) NSString* access_error;
 
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary;
 

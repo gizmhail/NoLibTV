@@ -23,9 +23,14 @@
 #endif
 
 @interface NLTAPI : NSObject<NSURLConnectionDataDelegate>
-@property (retain, nonatomic)NSString* partnerKey;
+@property (retain, nonatomic)NSString* partnerKey;//Limit shows and search calls
+@property (assign, nonatomic)BOOL subscribedOnly;//Limit shows calls
 @property (retain,nonatomic) NSMutableDictionary* showsById; // Already fetched shows
 @property (retain,nonatomic) NSMutableDictionary* familiesById; // Already fetched families
+@property (retain,nonatomic) NSMutableDictionary* familiesByKey; // Already fetched families
+@property (assign,nonatomic) BOOL handleNetworkActivityIndicator;
+@property (assign,nonatomic) int networkActivityCount;
+
 + (instancetype)sharedInstance;
 /*!
  @method    callAPI:withResultBlock:withKey:withCacheDuration:
@@ -60,6 +65,9 @@
 
 - (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 - (void)familyWithId:(long)familyId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)familyWithFamilyKey:(NSString*)familyKey withPartnerKey:(NSString*)partnerKey withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+//Conveniance method: a family merged  key is "partnerKey/familyKey"
+- (void)familyWithFamilyMergedKey:(NSString*)familyMergedKey withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
 //Response block  will contain an array of NLTShow objects
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
@@ -76,6 +84,10 @@
 
 //Readlist
 - (void)setReadStatus:(BOOL)isRead forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+
+//Progress (resume_play)
+- (void)getResumePlayForShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
+- (void)setResumePlay:(long)timeInMS forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 
 //Search
 - (void)search:(NSString*)query atPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;

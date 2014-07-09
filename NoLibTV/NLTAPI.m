@@ -46,6 +46,7 @@
         self.cachedResults = [NSMutableDictionary dictionary];
         self.showsById = [NSMutableDictionary dictionary];
         self.familiesById = [NSMutableDictionary dictionary];
+        self.familiesByKey = [NSMutableDictionary dictionary];
         [self loadCache];
     }
     return self;
@@ -124,6 +125,10 @@
             if(connection){
                 callInfo.connection = connection;
                 [self.calls addObject:callInfo];
+                self.networkActivityCount++;
+                if(self.handleNetworkActivityIndicator&&![[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
+                    [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:TRUE];
+                }
                 [connection start];
             }else{
                 NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Unable to create connection"}];
@@ -243,6 +248,10 @@
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection{
+    self.networkActivityCount--;
+    if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
+        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
+    }
     NLTAPICallInfo* info = [self callInfoForConnection:connection];
     NSError* jsonError = nil;
     NSDictionary* answer = nil;
@@ -310,6 +319,11 @@
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
+    self.networkActivityCount--;
+    if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
+        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
+    }
+
     NLTAPICallInfo* info = [self callInfoForConnection:connection];
     if(info.responseBlock){
         info.responseBlock(nil, error);
@@ -359,11 +373,52 @@
     }
 }
 
+- (void)familyWithFamilyKey:(NSString*)familyKey withPartnerKey:(NSString*)partnerKey withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* familyMergedKey = [NSString stringWithFormat:@"%@/%@",partnerKey,familyKey];
+    [self familyWithFamilyMergedKey:familyMergedKey withResultBlock:responseBlock withKey:key];
+}
+
+- (void)familyWithFamilyMergedKey:(NSString*)familyMergedKey withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    if([self.familiesByKey objectForKey:familyMergedKey]){
+        if(responseBlock){
+            responseBlock([self.familiesByKey objectForKey:familyMergedKey], nil);
+        }
+    }else{
+        NSString* urlStr = [NSString stringWithFormat:@"families/by_key/%@", familyMergedKey];
+        [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+            if(error){
+                if(responseBlock){
+                    responseBlock(nil, error);
+                }
+            }else{
+                NLTFamily* requestedFamily = nil;
+                if([result isKindOfClass:[NSArray class]]){
+                    for (NSDictionary* familyInfo in result) {
+                        NLTFamily* family = [[NLTFamily alloc] initWithDictionnary:familyInfo];
+                        if(family.id_family){
+                            [self.familiesById setObject:family forKey:[NSNumber numberWithInt:family.id_family]];
+                        }
+                        if(family.family_key && family.partner_key){
+                            NSString* resultFamilyMergedKey = [NSString stringWithFormat:@"%@/%@",family.partner_key,family.family_key];
+                            [self.familiesByKey setObject:family forKey:resultFamilyMergedKey];
+                            if([resultFamilyMergedKey compare:familyMergedKey]==NSOrderedSame){
+                                requestedFamily = family;
+                            }
+                        }
+                    }
+                }
+                if(responseBlock){
+                    responseBlock(requestedFamily, nil);
+                }
+            }
+        } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+    }
+}
 
 - (void)familyWithId:(long)familyId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
     if([self.familiesById objectForKey:[NSNumber numberWithInteger:familyId]]){
         if(responseBlock){
-            responseBlock([self.showsById objectForKey:[NSNumber numberWithInteger:familyId]], nil);
+            responseBlock([self.familiesById objectForKey:[NSNumber numberWithInteger:familyId]], nil);
         }
     }else{
         NSString* urlStr = [NSString stringWithFormat:@"families/by_id/%li", familyId];
@@ -382,6 +437,10 @@
                         }
                         if(familyId == family.id_family){
                             requestedFamily = family;
+                        }
+                        if(family.family_key && family.partner_key){
+                            NSString* resultFamilyMergedKey = [NSString stringWithFormat:@"%@/%@",family.partner_key,family.family_key];
+                            [self.familiesByKey setObject:family forKey:resultFamilyMergedKey];
                         }
                     }
                 }
@@ -404,7 +463,11 @@
 }
 
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withKey:(id)key{
-    NSString* urlStr = [NSString stringWithFormat:@"shows?page=%i&elements_per_page=%i", page, [self resultsByPage]];
+    NSString* baseCall = @"shows";
+    if(self.subscribedOnly){
+        baseCall = @"shows/subscribed";
+    }
+    NSString* urlStr = [NSString stringWithFormat:@"%@?page=%i&elements_per_page=%i", baseCall, page, [self resultsByPage]];
     if(self.partnerKey){
         urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
     }
@@ -412,6 +475,14 @@
         urlStr = [urlStr stringByAppendingFormat:@"&family_key=%@", familyKey];
     }
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+        if(error && error.domain == NSCocoaErrorDomain && error.code == 3840 && self.subscribedOnly){
+#warning TODO Remove this hack if the API return something when the result is empty (cf http://bugtracker.noco.tv/view.php?id=192)
+            result = @[];
+            error = nil;
+        }
+        if([result isKindOfClass:[NSDictionary class]]&&[(NSDictionary*)result objectForKey:@"error"]){
+            error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:(NSDictionary*)result];
+        }
         if(error){
             if(responseBlock){
                 responseBlock(nil, error);
@@ -634,6 +705,41 @@
             }
         }
     } withKey:key withCacheDuration:0 withMethod:method withBody:nil withContentType:nil];
+}
+
+#pragma mark Progress
+
+- (void)setResumePlay:(long)timeInMS forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* urlStr = [NSString stringWithFormat:@"shows/%i/progress", show.id_show];
+    float progress = 0;
+    if(show.duration_ms > 0){
+        progress = timeInMS/(float)show.duration_ms;
+    }
+    NSString* progressInfo = [NSString stringWithFormat:@"{\"progress\":{\"total\":%f},\"resume_play\": %li}", progress, timeInMS];
+    [self callAPI:urlStr withResultBlock:responseBlock withKey:key withCacheDuration:0 withMethod:@"PUT" withBody:[progressInfo dataUsingEncoding:NSUTF8StringEncoding] withContentType:@"application/json"];
+}
+
+- (void)getResumePlayForShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* urlStr = [NSString stringWithFormat:@"shows/%i/progress", show.id_show];
+    [self callAPI:urlStr withResultBlock:^(id result, NSError *error) {
+        if(error){
+            if(responseBlock){
+                responseBlock(nil , error);
+            }
+        }else{
+            long progress= 0;
+            if([result isKindOfClass:[NSArray class]]){
+                for (NSDictionary*showInfo in result) {
+                    if([[showInfo objectForKey:@"id_show"] integerValue]==show.id_show){
+                        progress = [[showInfo objectForKey:@"resume_play"] integerValue];
+                    }
+                }
+            }
+            if(responseBlock){
+                responseBlock([NSNumber numberWithLong:progress], nil);
+            }
+        }
+    } withKey:key withCacheDuration:0];
 }
 
 @end

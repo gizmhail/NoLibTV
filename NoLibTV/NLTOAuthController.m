@@ -11,6 +11,7 @@
 
 @interface NLTOAuthController ()
 @property (retain,nonatomic) UIWebView* webview;
+@property (retain,nonatomic) UIActivityIndicatorView* activity;
 @end
 
 @implementation NLTOAuthController
@@ -21,10 +22,17 @@
     [super viewDidLoad];
     self.webview = [[UIWebView alloc] initWithFrame:self.view.bounds];
     NSString* urlStr = [NSString stringWithFormat:@"%@/OAuth2/authorize.php?response_type=code&client_id=%@&state=STATE",NOCO_ENDPOINT,[NLTOAuth sharedInstance].clientId];
-    [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
     self.edgesForExtendedLayout = UIRectEdgeNone;
     self.webview.delegate = self;
+    self.webview.autoresizingMask = UIViewAutoresizingFlexibleHeight|UIViewAutoresizingFlexibleWidth;
+    self.activity = [[UIActivityIndicatorView alloc] initWithFrame:self.view.bounds];
+    self.activity.hidesWhenStopped = TRUE;
+    self.activity.activityIndicatorViewStyle = UIActivityIndicatorViewStyleGray;
+    self.activity.autoresizingMask = UIViewAutoresizingFlexibleHeight|UIViewAutoresizingFlexibleWidth;
     [self.view addSubview:self.webview];
+    [self.view addSubview:self.activity];
+    [self.activity startAnimating];
+    [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
 }
 
 - (void)didReceiveMemoryWarning
@@ -64,7 +72,12 @@
     return TRUE;
 }
 
+-(void)webViewDidFinishLoad:(UIWebView *)webView{
+    [self.activity stopAnimating];
+}
+
 - (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error{
+    [self.activity stopAnimating];
     BOOL normalInterruption = FALSE;
     if(error.userInfo && [error.userInfo objectForKey:@"NSErrorFailingURLKey"]){
         if([[error.userInfo objectForKey:@"NSErrorFailingURLKey"] rangeOfString:[NLTOAuth sharedInstance].redirectUri].location!=NSNotFound){

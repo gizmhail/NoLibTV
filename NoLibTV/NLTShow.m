@@ -22,7 +22,7 @@
         int min = seconds/60;
         seconds -= min*60;
         if(hours>0){
-            durationStr = [NSString stringWithFormat:@"%ih%i",hours,min];
+            durationStr = [NSString stringWithFormat:@"%02ih%02i",hours,min];
         }else if(min>5){
             durationStr = [NSString stringWithFormat:@"%imin",min];
         }else if(min>0){
@@ -35,6 +35,7 @@
 }
 #pragma - KVO methods
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary{
+    self.rawShow = dictionary;
     [self setValuesForKeysWithDictionary:dictionary];
     //Date parsing
     if(self.broadcast_date_utc){

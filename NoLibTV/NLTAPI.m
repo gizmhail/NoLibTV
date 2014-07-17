@@ -47,6 +47,7 @@
         self.showsById = [NSMutableDictionary dictionary];
         self.familiesById = [NSMutableDictionary dictionary];
         self.familiesByKey = [NSMutableDictionary dictionary];
+        self.partnersByKey = [NSMutableDictionary dictionary];
         [self loadCache];
     }
     return self;
@@ -298,7 +299,7 @@
             [self.calls removeObject:info];
             [self removeCallInfoWithSameUrlPart:info];
         }else{
-            NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Unable to parse answer"}];
+            NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:501 userInfo:@{@"message":@"Unable to parse answer"}];
             NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
             if(info.responseBlock){
                 [relatedCallInfoForCallback addObject:info];
@@ -369,7 +370,7 @@
                     responseBlock(requestedShow, nil);
                 }
             }
-        } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+        } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
     }
 }
 
@@ -411,7 +412,7 @@
                     responseBlock(requestedFamily, nil);
                 }
             }
-        } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+        } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
     }
 }
 
@@ -448,7 +449,7 @@
                     responseBlock(requestedFamily, nil);
                 }
             }
-        } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+        } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
     }
 }
 
@@ -481,7 +482,7 @@
             error = nil;
         }
         if([result isKindOfClass:[NSDictionary class]]&&[(NSDictionary*)result objectForKey:@"error"]){
-            error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:(NSDictionary*)result];
+            error = [NSError errorWithDomain:@"NLTAPIDomain" code:502 userInfo:(NSDictionary*)result];
         }
         if(error){
             if(responseBlock){
@@ -502,7 +503,7 @@
                 responseBlock(shows, nil);
             }
         }
-    } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+    } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
 }
 
 - (void)search:(NSString*)query atPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
@@ -524,7 +525,7 @@
                 responseBlock(results, nil);
             }
         }
-    } withKey:self withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+    } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
 }
 
 #pragma mark Queue list
@@ -554,7 +555,7 @@
                 responseBlock(watchListQueue, nil);
             }
         }
-    } withKey:self withCacheDuration:NLT_QUEUELIST_CACHE_DURATION];
+    } withKey:key withCacheDuration:NLT_QUEUELIST_CACHE_DURATION];
 }
 
 - (void)queueListShowIdsWithResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
@@ -625,7 +626,7 @@
                 [self callAPI:urlStr withResultBlock:responseBlock withKey:key withCacheDuration:0 withMethod:@"PUT" withBody:[newQueueListStr dataUsingEncoding:NSUTF8StringEncoding] withContentType:@"application/json"];
             }else{
                 //Already in queueList
-                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Already in queue list"}];
+                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:503 userInfo:@{@"message":@"Already in queue list"}];
                 if(responseBlock){
                     responseBlock(nil, error);
                 }
@@ -662,7 +663,7 @@
                 }
             }else{
                 //Already in queueList
-                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Not in queue list"}];
+                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:504 userInfo:@{@"message":@"Not in queue list"}];
                 if(responseBlock){
                     responseBlock(nil, error);
                 }
@@ -742,4 +743,203 @@
     } withKey:key withCacheDuration:0];
 }
 
+#pragma mark User account
+
+- (void)userAccountInfoWithResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [[NLTAPI sharedInstance] callAPI:@"users/init" withResultBlock:^(id result, NSError *error) {
+        if([result isKindOfClass:[NSDictionary class]]&&[(NSDictionary*)result objectForKey:@"error"]){
+            error = [NSError errorWithDomain:@"NLTAPIDomain" code:505 userInfo:(NSDictionary*)result];
+        }
+        if(!error){
+            if(responseBlock){
+                responseBlock(result, error);
+            }
+        }else{
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }
+    } withKey:key withCacheDuration:NLT_USER_CACHE_DURATION];
+}
+
+#pragma mark Partners
+
+- (void)partnersWithResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [[NLTAPI sharedInstance] callAPI:@"partners" withResultBlock:^(id result, NSError *error) {
+        if([result isKindOfClass:[NSDictionary class]]&&[(NSDictionary*)result objectForKey:@"error"]){
+            error = [NSError errorWithDomain:@"NLTAPIDomain" code:506 userInfo:(NSDictionary*)result];
+        }
+        if(!error){
+            if([result isKindOfClass:[NSArray class]]){
+                for (NSDictionary* partnerKeyInfo in result) {
+                    if([partnerKeyInfo objectForKey:@"partner_key"]){
+                        [self.partnersByKey setObject:partnerKeyInfo forKey:[partnerKeyInfo objectForKey:@"partner_key"]];
+                    }
+                }
+            }
+            if(responseBlock){
+                responseBlock(result, error);
+            }
+        }else{
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }
+    } withKey:key withCacheDuration:NLT_PARTNERS_CACHE_DURATION];
+}
+
+#pragma mark vido
+
+/**
+ * Available medias
+ * First level of results: video language
+ * Second level of results: subtitle language
+ * Third level qualities
+ */
+- (void)availableMediaForShow:(NLTShow*)show  withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    NSString* urlStr = [NSString stringWithFormat:@"/shows/%i/medias", show.id_show];
+    [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(id result, NSError *error) {
+        if(responseBlock){
+            responseBlock(result, error);
+        }
+    } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+}
+
+- (void)videoUrlForShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    [self videoUrlForShow:show withPreferedQuality:self.preferedQuality withPreferedLanguage:self.preferedLanguage withPreferedSubtitleLanguage:self.preferedSubtitleLanguage withResultBlock:responseBlock withKey:key];
+}
+
+- (void)videoUrlForShow:(NLTShow*)show withPreferedQuality:(NSString*)preferedQuality withPreferedLanguage:(NSString*)preferedLanguage withPreferedSubtitleLanguage:(NSString*)preferedSubtitleLanguage withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
+    //Adaptating to nil values (and special values)
+    if(preferedLanguage==nil
+       ||[preferedLanguage compare:@"none" options:NSCaseInsensitiveSearch]
+       ||[preferedLanguage compare:@"V.O." options:NSCaseInsensitiveSearch]
+       ||[preferedLanguage compare:@"V.O" options:NSCaseInsensitiveSearch]
+       ||[preferedLanguage compare:@"version originale" options:NSCaseInsensitiveSearch]){
+        preferedLanguage = show.original_lang;
+    }
+    if(preferedSubtitleLanguage == nil){
+        preferedSubtitleLanguage = @"none";
+    }
+    if(preferedQuality == nil){
+        preferedQuality = @"LQ";
+    }
+    
+    [[NLTAPI sharedInstance] availableMediaForShow:show withResultBlock:^(id result, NSError *error) {
+        if(!error&&result&&[result isKindOfClass:[NSDictionary class]]){
+            BOOL infoOk = false;
+            BOOL perfectMatchLang = FALSE;
+            BOOL perfectMatchSub = FALSE;
+            BOOL perfectMatchQuality = FALSE;
+            NSString* subLang = nil;
+            NSString* audioLang = nil;
+            NSString* qualityKey = nil;
+           //Searching for available language matching request
+            NSDictionary* audioLangInfo = nil;
+            for (NSString* availableAudioLang in (NSDictionary*)result) {
+                NSDictionary* availableAudioLangInfo = [result objectForKey:availableAudioLang];
+                if([availableAudioLang compare:preferedLanguage options:NSCaseInsensitiveSearch]==NSOrderedSame){
+                    //Perfect match
+                    audioLang = availableAudioLang;
+                    audioLangInfo = availableAudioLangInfo;
+                    perfectMatchLang = true;
+                    break;
+                }else{
+                    //Alternative match
+                    if(audioLang == nil){
+                        audioLang = availableAudioLang;
+                        audioLangInfo = availableAudioLangInfo;
+                    }
+                }
+            }
+            if(audioLangInfo&& [[audioLangInfo objectForKey:@"video_list"] isKindOfClass:[NSDictionary class]]){
+                NSDictionary* subtitleInfoList = [audioLangInfo objectForKey:@"video_list"];
+                //Searching for available subtitle language matching request
+                NSDictionary* subLangInfo = nil;
+                for (NSString* aivalableSubtitleLang in subtitleInfoList) {
+                    NSDictionary* aivalableSubtitleLangInfo = [subtitleInfoList objectForKey:aivalableSubtitleLang];
+                    if([aivalableSubtitleLang compare:preferedSubtitleLanguage options:NSCaseInsensitiveSearch]==NSOrderedSame){
+                        //Perfect match
+                        subLang = aivalableSubtitleLang;
+                        subLangInfo = aivalableSubtitleLangInfo;
+                        perfectMatchSub = true;
+                        break;
+                    }else{
+                        //Alternative match
+                        if(subLang == nil){
+                            subLang = aivalableSubtitleLang;
+                            subLangInfo = aivalableSubtitleLangInfo;
+                        }
+                    }
+                }
+                if(subLangInfo &&  [[subLangInfo objectForKey:@"quality_list"] isKindOfClass:[NSDictionary class]]){
+                    NSDictionary* qualityList = [subLangInfo objectForKey:@"quality_list"];
+                    //Searching for available quality matching request
+                    NSDictionary* qualityInfo = nil;
+                    for (NSString* aivalableQuality in qualityList) {
+                        NSDictionary* aivalableQualityInfo = [qualityList objectForKey:qualityList];
+                        if([aivalableQuality compare:preferedQuality options:NSCaseInsensitiveSearch]==NSOrderedSame){
+                            //Perfect match
+                            qualityKey = aivalableQuality;
+                            qualityInfo = aivalableQualityInfo;
+                            infoOk = TRUE;
+                            perfectMatchQuality = true;
+                            break;
+                        }else{
+                            //Alternative match
+                            if(qualityKey == nil){
+                                qualityKey = aivalableQuality;
+                                qualityInfo = aivalableQualityInfo;
+                                infoOk = TRUE;
+                            }
+                        }
+                    }
+                }
+            }
+            if(infoOk){
+                NSString* urlStr = [NSString stringWithFormat:@"/shows/%i/video/%@/%@", show.id_show,qualityKey,audioLang];
+                if(subLang&&[subLang compare:@"none" options:NSCaseInsensitiveSearch]!=NSOrderedSame){
+                    urlStr = [urlStr stringByAppendingFormat:@"?sub_lang=%@",subLang];
+                }
+#ifdef DEBUG
+                NSLog(@"Match found for video. Calling %@ (perfect match %i/%i/%i)",urlStr,perfectMatchLang,perfectMatchSub,perfectMatchQuality);
+#endif
+                [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(id result, NSError *error) {
+                    if(result&&[result objectForKey:@"file"]&&[result objectForKey:@"file"]!=[NSNull null]){
+                        if([(NSString*)[result objectForKey:@"file"] compare:@"not found"]!=NSOrderedSame){
+                            if(responseBlock){
+                                responseBlock(result,nil);
+                            }
+                        }else{
+                            NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:404 userInfo:@{@"message":@"Video not available"}];
+                            if([result objectForKey:@"popmessage"]&&[[result objectForKey:@"popmessage"] objectForKey:@"message"]){
+                                NSMutableDictionary* errorInfo = [NSMutableDictionary dictionaryWithDictionary:result];
+                                [errorInfo setObject:@"message" forKey:@"Unable to find video (see popmessage key for more details)"];
+                                error = [NSError errorWithDomain:@"NLTAPIDomain" code:NLTAPI_ERROR_VIDEO_UNAVAILABLE_WITH_POPMESSAGE userInfo:errorInfo];
+                            }
+                            if(responseBlock){
+                                responseBlock(nil, error);
+                            }
+                        }
+                    }else{
+                        NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:406 userInfo:@{@"message":@"Video not available"}];
+                        if(responseBlock){
+                            responseBlock(nil, error);
+                        }
+                    }
+                } withKey:key];
+            }else{
+                NSLog(@"Unable to find matching quality for video");
+                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:404 userInfo:@{@"message":@"Unable to find matching quality"}];
+                if(responseBlock){
+                    responseBlock(nil, error);
+                }
+            }
+        }else{
+            if(responseBlock){
+                responseBlock(nil, error);
+            }
+        }
+    } withKey: key];
+}
 @end

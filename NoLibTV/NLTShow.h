@@ -12,6 +12,8 @@
 
 @property (retain, nonatomic) NSDate* broadcastDate;
 
+@property (assign, nonatomic) NSDictionary* rawShow;
+
 //Raw field, generated from API
 @property (assign, nonatomic) BOOL mark_read;
 @property (retain, nonatomic) NSString* template_1l;

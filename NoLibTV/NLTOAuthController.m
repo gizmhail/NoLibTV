@@ -21,7 +21,6 @@
 {
     [super viewDidLoad];
     self.webview = [[UIWebView alloc] initWithFrame:self.view.bounds];
-    NSString* urlStr = [NSString stringWithFormat:@"%@/OAuth2/authorize.php?response_type=code&client_id=%@&state=STATE",NOCO_ENDPOINT,[NLTOAuth sharedInstance].clientId];
     self.edgesForExtendedLayout = UIRectEdgeNone;
     self.webview.delegate = self;
     self.webview.autoresizingMask = UIViewAutoresizingFlexibleHeight|UIViewAutoresizingFlexibleWidth;
@@ -32,6 +31,10 @@
     [self.view addSubview:self.webview];
     [self.view addSubview:self.activity];
     [self.activity startAnimating];
+}
+
+-(void)viewDidAppear:(BOOL)animated{
+    NSString* urlStr = [NSString stringWithFormat:@"%@/OAuth2/authorize.php?response_type=code&client_id=%@&state=STATE",NOCO_ENDPOINT,[NLTOAuth sharedInstance].clientId];
     [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
 }
 
@@ -80,13 +83,18 @@
     [self.activity stopAnimating];
     BOOL normalInterruption = FALSE;
     if(error.userInfo && [error.userInfo objectForKey:@"NSErrorFailingURLKey"]){
-        if([[error.userInfo objectForKey:@"NSErrorFailingURLKey"] rangeOfString:[NLTOAuth sharedInstance].redirectUri].location!=NSNotFound){
+        NSString* failingURLKey =  [error.userInfo objectForKey:@"NSErrorFailingURLKey"];
+        if([failingURLKey isKindOfClass:[NSURL class]]){
+            failingURLKey = [(NSURL*)failingURLKey absoluteString];
+        }
+        if([failingURLKey rangeOfString:[NLTOAuth sharedInstance].redirectUri].location!=NSNotFound){
             normalInterruption = TRUE;
         }
     }
     if(!normalInterruption){
-#warning TODO Handle error - propagate to NLTOauth singleton
         NSLog(@"%@ : %@ %@",NSStringFromSelector(_cmd), error, error.userInfo);
+        [[NLTOAuth sharedInstance] errorDuringNLTOAuthControllerDisplay:error];
+
     }
 }
 @end

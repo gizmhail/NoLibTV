@@ -41,7 +41,7 @@ typedef void (^NLTCallResponseBlock)(id result, NSError *error);
 - (BOOL)isAuthenticated;
 
 //Return true in the block either if access token is valid directly or after using a refresh token first
-- (void)isAuthenticatedAfterRefreshTokenUse:(void (^)(BOOL authenticated)) responseBlock;
+- (void)isAuthenticatedAfterRefreshTokenUse:(void (^)(BOOL authenticated, NSError* error)) responseBlock;
 
 /*
  * Launch the authentification process if needed (will display a webview overlay if needed), 
@@ -61,4 +61,9 @@ typedef void (^NLTCallResponseBlock)(id result, NSError *error);
  * Internal usage : doesn't need to be manually called
  */
 - (void)fetchAccessTokenFromAuthCode:(NSString*)code;
+/*
+ * Problem while invoking the NLTOAuthController
+ * Internal usage : doesn't need to be manually called
+ */
+- (void)errorDuringNLTOAuthControllerDisplay:(NSError*)error;
 @end

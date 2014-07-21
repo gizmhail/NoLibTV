@@ -79,11 +79,11 @@
 }
 
 
-- (void)isAuthenticatedAfterRefreshTokenUse:(void (^)(BOOL authenticated)) responseBlock{
+- (void)isAuthenticatedAfterRefreshTokenUse:(void (^)(BOOL authenticated, NSError* error)) responseBlock{
     if([self isAuthenticated]){
         //Return proper auth
         if(responseBlock){
-            responseBlock(TRUE);
+            responseBlock(TRUE, nil);
         }
     }else{
         //Checking if a refresh token might hel us here
@@ -100,23 +100,23 @@
                 //Return error
                 if(error){
                     if(responseBlock){
-                        responseBlock(FALSE);
+                        responseBlock(FALSE, error);
                     }
                 }
                 if([weakSelf isAuthenticated]){
                     //Return proper auth
                     if(responseBlock){
-                        responseBlock(TRUE);
+                        responseBlock(TRUE, nil);
                     }
                 }else{
                     //Was tring to use a refresh token which was probably outdated
-                    responseBlock(FALSE);
+                    responseBlock(FALSE, nil);
                 }
             };
             [self fetchAccessTokenFromRefreshToken];
         }else{
             if(responseBlock){
-                responseBlock(FALSE);
+                responseBlock(FALSE, nil);
             }
         }
     }
@@ -149,12 +149,12 @@
                 previousblock(error);
             }
             //Return error
+#warning TODO Check if we should handle differently when error is due to being offline
             if(error){
                 if(responseBlock){
                     responseBlock(error);
                 }
-            }
-            if([weakSelf isAuthenticated]){
+            }else if([weakSelf isAuthenticated]){
                 //Return proper auth
                 if(responseBlock){
                     responseBlock(nil);
@@ -187,6 +187,16 @@
     [controller presentViewController:self.oauthController animated:YES completion:^{
         
     }];
+}
+
+- (void)errorDuringNLTOAuthControllerDisplay:(NSError*)error{
+    [self.oauthController dismissViewControllerAnimated:YES completion:^{
+        if(self.authResponseBlock){
+            self.authResponseBlock(error);
+            self.authResponseBlock = nil;
+        }
+    }];
+    self.oauthController = nil;
 }
 
 - (void)fetchAccessTokenFromAuthCode:(NSString*)code{
@@ -306,7 +316,7 @@
         self.oauthAccessToken = [answer objectForKey:@"access_token"];
         self.oauthRefreshToken = [answer objectForKey:@"refresh_token"];
         self.oauthTokenType = [answer objectForKey:@"token_type"];
-        int expiresIn = [[answer objectForKey:@"expires_in"] integerValue];
+        long expiresIn = [[answer objectForKey:@"expires_in"] integerValue];
         self.oauthExpirationDate = [[NSDate date] dateByAddingTimeInterval:expiresIn];
         [self saveOAuthInfo];
     }

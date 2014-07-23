@@ -261,7 +261,7 @@
     }
     if(!jsonError&&answer){
         if(info.cacheValidityEndDate){
-            [self.cachedResults setObject:@{@"answer":answer,@"cacheValidityEndDate":info.cacheValidityEndDate} forKey:info.urlPart];
+            [self.cachedResults setObject:@{@"answer":answer,@"cacheValidityEndDate":info.cacheValidityEndDate,@"cachingDate":[NSDate date]} forKey:info.urlPart];
             [self saveCache];
         }
         //Response to current block
@@ -342,13 +342,27 @@
 #pragma mark - Upper level call
 
 - (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
-    if([self.showsById objectForKey:[NSNumber numberWithInteger:showId]]){
+    [self showWithId:showId withResultBlock:responseBlock withKey:key noCache:FALSE];
+}
+
+- (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key noCache:(BOOL)noCache{
+#warning TODO ensure that showsById is updated with latest results (store in show the call date, and compare,...)
+
+    long cache = NLT_SHOWS_CACHE_DURATION;
+    if(noCache){
+        cache = 0;
+    }
+    if(!noCache&& [self.showsById objectForKey:[NSNumber numberWithInteger:showId]]){
         if(responseBlock){
             responseBlock([self.showsById objectForKey:[NSNumber numberWithInteger:showId]], nil);
         }
     }else{
         NSString* urlStr = [NSString stringWithFormat:@"shows/by_id/%li", showId];
         [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+            NSDate* cachingDate = [[self.cachedResults objectForKey:urlStr] objectForKey:@"cachingDate"];
+            if(!cachingDate){
+                cachingDate = [NSDate date];
+            }
             if(error){
                 if(responseBlock){
                     responseBlock(nil, error);
@@ -358,8 +372,14 @@
                 if([result isKindOfClass:[NSArray class]]){
                     for (NSDictionary* showInfo in result) {
                         NLTShow* show = [[NLTShow alloc] initWithDictionnary:showInfo];
+                        show.cachingDate = cachingDate;
                         if(show.id_show){
-                            [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
+                            NLTShow* previousShow = [self.showsById objectForKey:[NSNumber numberWithInt:show.id_show]];
+                            if(!previousShow || [[previousShow cachingDate] compare:cachingDate]!=NSOrderedDescending){
+                                [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
+                            }else if(previousShow){
+                                show = previousShow;
+                            }
                         }
                         if(showId == show.id_show){
                             requestedShow = show;
@@ -370,7 +390,7 @@
                     responseBlock(requestedShow, nil);
                 }
             }
-        } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+        } withKey:key withCacheDuration:cache];
     }
 }
 
@@ -476,6 +496,10 @@
         urlStr = [urlStr stringByAppendingFormat:@"&family_key=%@", familyKey];
     }
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
+        NSDate* cachingDate = [[self.cachedResults objectForKey:urlStr] objectForKey:@"cachingDate"];
+        if(!cachingDate){
+            cachingDate = [NSDate date];
+        }
         if(error && error.domain == NSCocoaErrorDomain && error.code == 3840 && self.subscribedOnly){
 #warning TODO Remove this hack if the API return something when the result is empty (cf http://bugtracker.noco.tv/view.php?id=192)
             result = @[];
@@ -493,8 +517,14 @@
             if([result isKindOfClass:[NSArray class]]){
                 for (NSDictionary* showInfo in result) {
                     NLTShow* show = [[NLTShow alloc] initWithDictionnary:showInfo];
+                    show.cachingDate = cachingDate;
                     if(show.id_show){
-                        [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
+                        NLTShow* previousShow = [self.showsById objectForKey:[NSNumber numberWithInt:show.id_show]];
+                        if(!previousShow || [[previousShow cachingDate] compare:cachingDate]!=NSOrderedDescending){
+                            [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
+                        }else if(previousShow){
+                            show = previousShow;
+                        }
                     }
                     [shows addObject:show];
                 }

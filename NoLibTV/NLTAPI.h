@@ -80,7 +80,7 @@
 
 #pragma mark Show
 - (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
-
+- (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key noCache:(BOOL)noCache;
 #pragma mark Family
 - (void)familyWithId:(long)familyId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 - (void)familyWithFamilyKey:(NSString*)familyKey withPartnerKey:(NSString*)partnerKey withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;

@@ -38,6 +38,8 @@
 @property (retain, nonatomic) NSString* icon_960x540;
 @property (retain, nonatomic) NSString* icon_1024x576;
 
+@property (retain, nonatomic) NSDate* cachingDate;
+
 - (NLTFamily*)initWithDictionnary:(NSDictionary*)dictionary;
 
 @end

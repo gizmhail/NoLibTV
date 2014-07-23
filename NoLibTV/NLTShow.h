@@ -89,6 +89,8 @@
 @property (retain, nonatomic) NSArray* full_video_languages; // type unsure (no value seen)
 @property (retain, nonatomic) NSString* access_error;
 
+@property (retain, nonatomic) NSDate* cachingDate;
+
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary;
 
 - (NSString*)durationString;

@@ -260,26 +260,47 @@
         answer = [NSJSONSerialization JSONObjectWithData:info.data options:NSJSONReadingAllowFragments error:&jsonError];
     }
     if(!jsonError&&answer){
-        if(info.cacheValidityEndDate){
-            [self.cachedResults setObject:@{@"answer":answer,@"cacheValidityEndDate":info.cacheValidityEndDate,@"cachingDate":[NSDate date]} forKey:info.urlPart];
-            [self saveCache];
-        }
-        //Response to current block
-        NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
-        if(info.responseBlock){
-            [relatedCallInfoForCallback addObject:info];
-        }
-        //Response to other related pending blocks
-        for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
-            if(otherInfo.responseBlock){
-                [relatedCallInfoForCallback addObject:otherInfo];
+        if([answer isKindOfClass:[NSDictionary class]]&&[answer objectForKey:@"error"]){
+            NSError* nocoError = [NSError errorWithDomain:@"NLTAPIDomain" code:510 userInfo:answer];
+            NSLog(@"Noco error: %@",nocoError);
+            
+            NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
+            if(info.responseBlock){
+                [relatedCallInfoForCallback addObject:info];
             }
-        }
-        //We cleanup calls before using callbacks (in case the callbacks user want to make the same call, we don't want it to be prevented by the callInfoWithSameUrlPart check)
-        [self.calls removeObject:info];
-        [self removeCallInfoWithSameUrlPart:info];
-        for (NLTAPICallInfo* relatedInfo in relatedCallInfoForCallback) {
-            relatedInfo.responseBlock(answer,nil);
+            //Response to other related pending blocks
+            for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
+                if(otherInfo.responseBlock){
+                    [relatedCallInfoForCallback addObject:otherInfo];
+                }
+            }
+            for (NLTAPICallInfo* relatedInfo in relatedCallInfoForCallback) {
+                relatedInfo.responseBlock(nil, nocoError);
+            }
+            [self.calls removeObject:info];
+            [self removeCallInfoWithSameUrlPart:info];
+        }else{
+            if(info.cacheValidityEndDate){
+                [self.cachedResults setObject:@{@"answer":answer,@"cacheValidityEndDate":info.cacheValidityEndDate,@"cachingDate":[NSDate date]} forKey:info.urlPart];
+                [self saveCache];
+            }
+            //Response to current block
+            NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
+            if(info.responseBlock){
+                [relatedCallInfoForCallback addObject:info];
+            }
+            //Response to other related pending blocks
+            for (NLTAPICallInfo* otherInfo in [self callInfoWithSameUrlPart:info]) {
+                if(otherInfo.responseBlock){
+                    [relatedCallInfoForCallback addObject:otherInfo];
+                }
+            }
+            //We cleanup calls before using callbacks (in case the callbacks user want to make the same call, we don't want it to be prevented by the callInfoWithSameUrlPart check)
+            [self.calls removeObject:info];
+            [self removeCallInfoWithSameUrlPart:info];
+            for (NLTAPICallInfo* relatedInfo in relatedCallInfoForCallback) {
+                relatedInfo.responseBlock(answer,nil);
+            }
         }
     }else{
         if(jsonError){
@@ -489,11 +510,11 @@
         baseCall = @"shows/subscribed";
     }
     NSString* urlStr = [NSString stringWithFormat:@"%@?page=%i&elements_per_page=%i", baseCall, page, [self resultsByPage]];
-    if(self.partnerKey){
-        urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
-    }
+    //We do not add partner key if a specific family is requested
     if(familyKey){
         urlStr = [urlStr stringByAppendingFormat:@"&family_key=%@", familyKey];
+    }else if(self.partnerKey){
+        urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
     }
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
         NSDate* cachingDate = [[self.cachedResults objectForKey:urlStr] objectForKey:@"cachingDate"];

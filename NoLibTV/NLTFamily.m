@@ -22,6 +22,28 @@
 #endif
 }
 
+
+-(void)setValue:(id)value forKey:(NSString *)key{
+    NSMethodSignature* methodSignature = [[NLTFamily class] instanceMethodSignatureForSelector:NSSelectorFromString(key)];
+    if(methodSignature){
+        if(strcmp([methodSignature methodReturnType], "@")==0){
+            //Object expected
+            if(value && [value isKindOfClass:[NSNumber class]]){
+                //...but number received : adaptating
+                value = [NSString stringWithFormat:@"%@", value];
+            }
+        }
+    }
+    // "@" is not garanteed to save us from NSNumber received instead of NSString (this value can change, according to the documentaiton), so we add a final security
+
+    if([@[@"family_TT", @"family_OT", @"partner_name", @"partner_shortname"] containsObject:key]){
+        if(value && ![value isKindOfClass:[NSString class]]){
+            value = [NSString stringWithFormat:@"%@", value];
+        }
+    }
+    [super setValue:value forKey:key];
+}
+
 -(void)setNilValueForKey:(NSString *)key{
     if([key compare:@"id_show_autopromo"]==NSOrderedSame){
         //Known possible null value

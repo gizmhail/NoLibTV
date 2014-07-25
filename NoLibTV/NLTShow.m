@@ -59,8 +59,25 @@
             }
         }
     }
+    NSMethodSignature* methodSignature = [[NLTShow class] instanceMethodSignatureForSelector:NSSelectorFromString(key)];
+    if(methodSignature){
+        if(strcmp([methodSignature methodReturnType], "@")==0){
+            //Object expected
+            if(value && [value isKindOfClass:[NSNumber class]]){
+                //...but number received : adaptating
+                value = [NSString stringWithFormat:@"%@", value];
+            }
+        }
+    }
+    // "@" is not garanteed to save us from NSNumber received instead of NSString (this value can change, according to the documentaiton), so we add a final security
+    if([@[@"show_TT", @"show_OT", @"partner_name", @"partner_shortname"] containsObject:key]){
+        if(value && ![value isKindOfClass:[NSString class]]){
+            value = [NSString stringWithFormat:@"%@", value];
+        }
+    }
     [super setValue:value forKey:key];
 }
+
 -(void)setValue:(id)value forUndefinedKey:(NSString *)key{
     if([@[@"qualities", @"qualities_languages", @"languages", @"audio_languages", @"video_languages",@"full_audio_languages",@"full_video_Langagues"] containsObject:key]){
         if([value isKindOfClass:[NSNull class]]){

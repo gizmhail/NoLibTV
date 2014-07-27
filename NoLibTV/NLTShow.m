@@ -35,6 +35,9 @@
 }
 #pragma - KVO methods
 - (NLTShow*)initWithDictionnary:(NSDictionary*)dictionary{
+    if(![dictionary isKindOfClass:[NSDictionary class]]){
+        return nil;
+    }
     self.rawShow = dictionary;
     [self setValuesForKeysWithDictionary:dictionary];
     //Date parsing

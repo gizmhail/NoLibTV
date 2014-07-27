@@ -102,8 +102,7 @@
                     if(responseBlock){
                         responseBlock(FALSE, error);
                     }
-                }
-                if([weakSelf isAuthenticated]){
+                }else if([weakSelf isAuthenticated]){
                     //Return proper auth
                     if(responseBlock){
                         responseBlock(TRUE, nil);

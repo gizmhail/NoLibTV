@@ -42,6 +42,7 @@
 
 - (instancetype)init{
     if(self = [super init]){
+        self.autoLaunchAuthentificationView = TRUE;
         self.calls = [NSMutableArray array];
         self.cachedResults = [NSMutableDictionary dictionary];
         self.showsById = [NSMutableDictionary dictionary];
@@ -51,6 +52,30 @@
         [self loadCache];
     }
     return self;
+}
+
+- (void)authentificationWrapper:(NLTAuthResponseBlock)responseBlock{
+    if(self.autoLaunchAuthentificationView){
+        [[NLTOAuth sharedInstance] authenticate:responseBlock];
+    }else{
+        [[NLTOAuth sharedInstance] isAuthenticatedAfterRefreshTokenUse:^(BOOL authenticated, NSError *error) {
+            if(authenticated){
+                if(responseBlock){
+                    responseBlock(nil);
+                }
+            }else if(error){
+                if(responseBlock){
+                    responseBlock(error);
+                }
+            }else{
+                NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:401 userInfo:@{@"message":@"Not authenticated"}];
+                if(responseBlock){
+                    responseBlock(error);
+                }
+
+            }
+        }];
+    }
 }
 
 - (void)callAPI:(NSString*)urlPart withResultBlock:(NLTCallResponseBlock)block{
@@ -78,7 +103,7 @@
             return;
         }
     }
-    [[NLTOAuth sharedInstance] authenticate:^(NSError *error) {
+    [self authentificationWrapper:^(NSError *error) {
         if(error){
             if(block){
                 block(nil,error);
@@ -144,7 +169,7 @@
 - (NSArray*)callInfoWithSameUrlPart:(NLTAPICallInfo*)referenceInfo{
     NSMutableArray* callInfos = [NSMutableArray array];
     for (NLTAPICallInfo* info in self.calls) {
-        if(info.urlPart && [info.urlPart compare:referenceInfo.urlPart] == NSOrderedSame && info != referenceInfo){
+        if(referenceInfo.urlPart && info.urlPart && [info.urlPart compare:referenceInfo.urlPart] == NSOrderedSame && info != referenceInfo){
             [callInfos addObject:info];
         }
     }
@@ -154,7 +179,7 @@
 - (void)removeCallInfoWithSameUrlPart:(NLTAPICallInfo*)referenceInfo{
     NSMutableArray* callInfos = [NSMutableArray array];
     for (NLTAPICallInfo* info in self.calls) {
-        if(info.urlPart && [info.urlPart compare:referenceInfo.urlPart] == NSOrderedSame && info != referenceInfo){
+        if(referenceInfo.urlPart && info.urlPart && [info.urlPart compare:referenceInfo.urlPart] == NSOrderedSame && info != referenceInfo){
             [callInfos addObject:info];
         }
     }
@@ -261,7 +286,7 @@
     }
     if(!jsonError&&answer){
         if([answer isKindOfClass:[NSDictionary class]]&&[answer objectForKey:@"error"]){
-            NSError* nocoError = [NSError errorWithDomain:@"NLTAPIDomain" code:510 userInfo:answer];
+            NSError* nocoError = [NSError errorWithDomain:@"NLTAPIDomain" code:NLTAPI_NOCO_ERROR userInfo:answer];
             NSLog(@"Noco error: %@",nocoError);
             
             NSMutableArray* relatedCallInfoForCallback = [NSMutableArray array];
@@ -367,8 +392,6 @@
 }
 
 - (void)showWithId:(long)showId withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key noCache:(BOOL)noCache{
-#warning TODO ensure that showsById is updated with latest results (store in show the call date, and compare,...)
-
     long cache = NLT_SHOWS_CACHE_DURATION;
     if(noCache){
         cache = 0;
@@ -395,6 +418,7 @@
                         NLTShow* show = [[NLTShow alloc] initWithDictionnary:showInfo];
                         show.cachingDate = cachingDate;
                         if(show.id_show){
+#warning TODO Determine if this previousShow check is still needed now that propagateReadStatusInCachedResults ensure an up to date mark_read in caches
                             NLTShow* previousShow = [self.showsById objectForKey:[NSNumber numberWithInt:show.id_show]];
                             if(!previousShow || [[previousShow cachingDate] compare:cachingDate]!=NSOrderedDescending){
                                 [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
@@ -453,7 +477,7 @@
                     responseBlock(requestedFamily, nil);
                 }
             }
-        } withKey:key withCacheDuration:NLT_SHOWS_CACHE_DURATION];
+        } withKey:key withCacheDuration:NLT_FAMILY_CACHE_DURATION];
     }
 }
 
@@ -505,6 +529,10 @@
 }
 
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withKey:(id)key{
+    [self showsAtPage:page withResultBlock:responseBlock withFamilyKey:familyKey withWatchFilter:nil withKey:key];
+}
+
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withWatchFilter:(NSString*)watchFilter withKey:(id)key{
     NSString* baseCall = @"shows";
     if(self.subscribedOnly){
         baseCall = @"shows/subscribed";
@@ -515,6 +543,9 @@
         urlStr = [urlStr stringByAppendingFormat:@"&family_key=%@", familyKey];
     }else if(self.partnerKey){
         urlStr = [urlStr stringByAppendingFormat:@"&partner_key=%@", self.partnerKey];
+    }
+    if(watchFilter){
+        urlStr = [urlStr stringByAppendingFormat:@"&mark_read=%@",watchFilter];
     }
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
         NSDate* cachingDate = [[self.cachedResults objectForKey:urlStr] objectForKey:@"cachingDate"];
@@ -540,6 +571,7 @@
                     NLTShow* show = [[NLTShow alloc] initWithDictionnary:showInfo];
                     show.cachingDate = cachingDate;
                     if(show.id_show){
+#warning TODO Determine if this previousShow check is still needed now that propagateReadStatusInCachedResults ensure an up to date mark_read in caches
                         NLTShow* previousShow = [self.showsById objectForKey:[NSNumber numberWithInt:show.id_show]];
                         if(!previousShow || [[previousShow cachingDate] compare:cachingDate]!=NSOrderedDescending){
                             [self.showsById setObject:show forKey:[NSNumber numberWithInt:show.id_show]];
@@ -729,7 +761,6 @@
 - (void)setReadStatus:(BOOL)isRead forShow:(NLTShow*)show withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key{
     NSString* urlStr = [NSString stringWithFormat:@"shows/%i/mark_read",show.id_show];
     //We're changing info for a show : calls cached for shows are reliable anymore
-    [self invalidateCacheWithPrefix:@"shows"];
     NSString* method = @"POST";
     if(!isRead){
         method = @"DELETE";
@@ -743,9 +774,11 @@
             if([result isKindOfClass:[NSArray class]]){
                 for (NSDictionary* readInfo in result) {
                     if([readInfo objectForKey:@"id_show"]&&[readInfo objectForKey:@"id_show"]!=[NSNull null]&&[[readInfo objectForKey:@"id_show"] integerValue]==show.id_show){
+                        show.cachingDate = [NSDate date];
                         if([readInfo objectForKey:@"mark_read"]&&[readInfo objectForKey:@"mark_read"]!=[NSNull null]){
                             show.mark_read = [[readInfo objectForKey:@"mark_read"] boolValue];
                         }
+                        [self propagateReadStatusInCachedResults:show];
                     }
                 }
             }
@@ -757,6 +790,39 @@
             }
         }
     } withKey:key withCacheDuration:0 withMethod:method withBody:nil withContentType:nil];
+}
+
+- (void)propagateReadStatusInCachedResults:(NLTShow*)show{
+    for (NSString* urlPart in [self.cachedResults allKeys]) {
+        if([urlPart hasPrefix:@"shows"]){
+            NSMutableDictionary* cachedResult = [NSMutableDictionary dictionaryWithDictionary:[self.cachedResults objectForKey:urlPart]];
+            NSArray* originalAnswer = [cachedResult objectForKey:@"answer"];
+            BOOL changeMade = false;
+            if([originalAnswer isKindOfClass:[NSArray class]]){
+                NSMutableArray* answer = [NSMutableArray arrayWithArray:originalAnswer];
+                for (long i = 0; i < [answer count]; i++) {
+                    NSDictionary* answerShow = [answer objectAtIndex:i];
+                    if([answerShow isKindOfClass:[NSDictionary class]]&&[answerShow objectForKey:@"id_show"]&&[[answerShow objectForKey:@"id_show"] integerValue]==show.id_show){
+                        //show is currently modified
+                        answerShow = [NSMutableDictionary dictionaryWithDictionary:answerShow];
+                        [(NSMutableDictionary*)answerShow setObject:[NSNumber numberWithBool:show.mark_read] forKey:@"mark_read"];
+                        [answer replaceObjectAtIndex:i withObject:answerShow];
+                        changeMade = true;
+                    }
+                }
+                if(changeMade){
+                    [cachedResult setObject:answer forKey:@"answer"];
+                }
+            }
+            if(changeMade){
+#ifdef DEBUG
+                NSLog(@"Changed cached results for %@",urlPart);
+#endif
+                [self.cachedResults setObject:cachedResult forKey:urlPart];
+            }
+        }
+    }
+    [self saveCache];
 }
 
 #pragma mark Progress
@@ -926,13 +992,13 @@
                 if(subLangInfo &&  [[subLangInfo objectForKey:@"quality_list"] isKindOfClass:[NSDictionary class]]){
                     NSDictionary* qualityList = [subLangInfo objectForKey:@"quality_list"];
                     //Searching for available quality matching request
-                    NSDictionary* qualityInfo = nil;
+                    //NSDictionary* qualityInfo = nil;
                     for (NSString* aivalableQuality in qualityList) {
-                        NSDictionary* aivalableQualityInfo = [qualityList objectForKey:qualityList];
+                        //NSDictionary* aivalableQualityInfo = [qualityList objectForKey:qualityList];
                         if([aivalableQuality compare:preferedQuality options:NSCaseInsensitiveSearch]==NSOrderedSame){
                             //Perfect match
                             qualityKey = aivalableQuality;
-                            qualityInfo = aivalableQualityInfo;
+                            //qualityInfo = aivalableQualityInfo;
                             infoOk = TRUE;
                             perfectMatchQuality = true;
                             break;
@@ -940,7 +1006,7 @@
                             //Alternative match
                             if(qualityKey == nil){
                                 qualityKey = aivalableQuality;
-                                qualityInfo = aivalableQualityInfo;
+                                //qualityInfo = aivalableQualityInfo;
                                 infoOk = TRUE;
                             }
                         }

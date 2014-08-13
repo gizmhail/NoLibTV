@@ -17,15 +17,16 @@
 #define NLT_QUEUELIST_CACHE_DURATION 60
 #define NLT_USER_CACHE_DURATION 3600*10
 #define NLT_PARTNERS_CACHE_DURATION 3600*24
-#ifdef DEBUG
-//Debug mode
-#define NLT_SHOWS_CACHE_DURATION 60*30
-#else
 #define NLT_SHOWS_CACHE_DURATION 60*3
-#endif
+#define NLT_FAMILY_CACHE_DURATION 3600*24
 
 #warning TODO Define all error codes
 #define NLTAPI_ERROR_VIDEO_UNAVAILABLE_WITH_POPMESSAGE 405
+#define NLTAPI_NOCO_ERROR 510
+
+#define NLTAPI_WATCHFILTER_READONLY @"1"
+#define NLTAPI_WATCHFILTER_UNREADONLY @"0"
+#define NLTAPI_WATCHFILTER_ALL nil
 
 @interface NLTAPI : NSObject<NSURLConnectionDataDelegate>
 @property (retain, nonatomic)NSString* partnerKey;//Limit shows and search calls
@@ -39,6 +40,7 @@
 @property (retain,nonatomic) NSString* preferedQuality;//Prefered quality for video (LQ, HD_720,...)
 @property (retain,nonatomic) NSString* preferedLanguage;//Prefered audio language for video (fr, ja, en, nil for original version)
 @property (retain,nonatomic) NSString* preferedSubtitleLanguage;//Prefered subtitle language (none, fr, en)
+@property (assign,nonatomic) BOOL autoLaunchAuthentificationView;//Calls NLTOAuth authenticate when needed if true
 
 #pragma mark Shared singleton
 + (instancetype)sharedInstance;
@@ -91,7 +93,7 @@
 //Response block  will contain an array of NLTShow objects
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withKey:(id)key;
 - (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withKey:(id)key;
-
+- (void)showsAtPage:(int)page withResultBlock:(NLTCallResponseBlock)responseBlock withFamilyKey:(NSString*)familyKey withWatchFilter:(NSString*)watchFilter withKey:(id)key;
 //Tells how much shows/famillies we request by page in calls
 - (int)resultsByPage;
 

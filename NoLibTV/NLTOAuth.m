@@ -140,10 +140,18 @@
     }else{
         __weak NLTOAuth* weakSelf = self;
         NLTAuthResponseBlock previousblock = nil;
+        BOOL authAlreadyPending = FALSE;
         if(self.authResponseBlock){
+#ifdef DEBUG
+            NSLog(@"Auth call already pending");
+#endif
             previousblock = self.authResponseBlock;
+            authAlreadyPending = TRUE;
         }
         self.authResponseBlock = ^(NSError *error) {
+#ifdef DEBUG
+            NSLog(@"Auth call finished");
+#endif
             if(previousblock){
                 previousblock(error);
             }
@@ -163,10 +171,12 @@
                 [weakSelf displayOAuthControllerOverlay];
             }
         };
-        if(self.oauthRefreshToken){
-            [self fetchAccessTokenFromRefreshToken];
-        }else{
-            [self displayOAuthControllerOverlay];
+        if(!authAlreadyPending){
+            if(self.oauthRefreshToken){
+                [self fetchAccessTokenFromRefreshToken];
+            }else{
+                [self displayOAuthControllerOverlay];
+            }
         }
     }
 }
@@ -199,6 +209,9 @@
 }
 
 - (void)fetchAccessTokenFromAuthCode:(NSString*)code{
+#ifdef DEBUG
+    NSLog(@"fetchAccessTokenFromAuthCode");
+#endif
     //OAuthController can be dismissed
     [self.oauthController dismissViewControllerAnimated:YES completion:nil];
     self.oauthController = nil;
@@ -212,6 +225,9 @@
 }
 
 - (void)fetchAccessTokenFromRefreshToken{
+#ifdef DEBUG
+    NSLog(@"fetchAccessTokenFromRefreshToken");
+#endif
     self.oauthCode = nil;
     self.oauthAccessToken = nil;
     self.oauthExpirationDate = nil;
@@ -292,6 +308,10 @@
     self.oauthRefreshToken = [settings objectForKey:@"NLTOAuth_oauthRefreshToken"];
     self.oauthExpirationDate = [settings objectForKey:@"NLTOAuth_oauthExpirationDate"];
     self.oauthTokenType = [settings objectForKey:@"NLTOAuth_oauthTokenType"];
+#ifdef DEBUG
+    //Debug to test refresh token
+    //self.oauthExpirationDate = [NSDate dateWithTimeIntervalSinceNow:10];
+#endif
 }
 
 #pragma mark NSURLConnectionDataDelegate
@@ -321,12 +341,18 @@
     }
     //Callback, error handling
     if(self.oauthAccessToken){
+#ifdef DEBUG
+        NSLog(@"fetchAccessToken sucess");
+#endif
         //Success
         if(self.authResponseBlock){
             self.authResponseBlock(nil);
             self.authResponseBlock = nil;
         }
     }else{
+#ifdef DEBUG
+        NSLog(@"fetchAccessToken failure %@", answer);
+#endif
         //Failure
         if(refreshTokenTry){
             //Was tring to use a refresh token - was probably outdated. The problem will be handled in the authResponseBlock (either switch to normal login with webview, or handle differently)

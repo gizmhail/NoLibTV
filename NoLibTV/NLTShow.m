@@ -38,15 +38,17 @@
     if(![dictionary isKindOfClass:[NSDictionary class]]){
         return nil;
     }
-    self.rawShow = dictionary;
-    [self setValuesForKeysWithDictionary:dictionary];
-    //Date parsing
-    if(self.broadcast_date_utc){
-        NSDateFormatter *formater = [[NSDateFormatter alloc] init];
-        [formater setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
-        NSTimeZone *timeZone = [NSTimeZone timeZoneWithName:@"UTC"];
-        [formater setTimeZone:timeZone];
-        self.broadcastDate = [formater dateFromString:self.broadcast_date_utc];
+    if(self = [super init]){
+        self.rawShow = dictionary;
+        [self setValuesForKeysWithDictionary:dictionary];
+        //Date parsing
+        if(self.broadcast_date_utc){
+            NSDateFormatter *formater = [[NSDateFormatter alloc] init];
+            [formater setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+            NSTimeZone *timeZone = [NSTimeZone timeZoneWithName:@"UTC"];
+            [formater setTimeZone:timeZone];
+            self.broadcastDate = [formater dateFromString:self.broadcast_date_utc];
+        }
     }
     return self;
 }

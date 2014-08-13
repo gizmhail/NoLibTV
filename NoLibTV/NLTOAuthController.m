@@ -68,7 +68,9 @@
             //fetchAccessTokenFromAuthCode also handles dismissing the controller
             [[NLTOAuth sharedInstance] fetchAccessTokenFromAuthCode:[params objectForKey:@"code"]];
         }else{
-#warning Handle these error cases
+            NSError* error = [NSError errorWithDomain:@"NLTErrorDomain" code:600 userInfo:@{@"oauthError":@"Unexpected response", @"returnUrl":[request.URL absoluteString]}];
+            [[NLTOAuth sharedInstance] errorDuringNLTOAuthControllerDisplay:error];
+
         }
         return NO;
     }

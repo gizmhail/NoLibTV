@@ -547,6 +547,11 @@
     if(watchFilter){
         urlStr = [urlStr stringByAppendingFormat:@"&mark_read=%@",watchFilter];
     }
+    double cacheDuration = NLT_SHOWS_CACHE_DURATION;
+    if(watchFilter){
+        //We lower the cache duration for query with read/unread filters, as they can change often
+        cacheDuration = NLT_MARKREADSHOWS_CACHE_DURATION;
+    }
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(NSArray* result, NSError *error) {
         NSDate* cachingDate = [[self.cachedResults objectForKey:urlStr] objectForKey:@"cachingDate"];
         if(!cachingDate){
@@ -579,7 +584,20 @@
                             show = previousShow;
                         }
                     }
-                    [shows addObject:show];
+                    BOOL validResult = TRUE;
+                    if(watchFilter){
+                        //result might be a cached result, and the cache might have been modified due to a mark read status change, so we check that the show still matches the condition
+                        BOOL expectedMarkReadStatus = [watchFilter boolValue];
+                        if(expectedMarkReadStatus != show.mark_read){
+                            validResult = FALSE;
+#ifdef DEBUG
+                            NSLog(@"Show %@ has changed of mark read status since it has been cached - discard it from the results",show.show_TT);
+#endif
+                        }
+                    }
+                    if(validResult){
+                        [shows addObject:show];
+                    }
                 }
             }
             if(responseBlock){

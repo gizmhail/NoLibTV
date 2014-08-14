@@ -811,6 +811,11 @@
 }
 
 - (void)propagateReadStatusInCachedResults:(NLTShow*)show{
+    //Propagation in cached NLTShow objects
+    NLTShow* cachedShow = [self.showsById objectForKey:[NSNumber numberWithInt:show.id_show]];
+    cachedShow.mark_read = show.mark_read;
+    
+    //Propagation in cached raw results
     for (NSString* urlPart in [self.cachedResults allKeys]) {
         if([urlPart hasPrefix:@"shows"]){
             NSMutableDictionary* cachedResult = [NSMutableDictionary dictionaryWithDictionary:[self.cachedResults objectForKey:urlPart]];

@@ -79,6 +79,17 @@
 
 -(void)webViewDidFinishLoad:(UIWebView *)webView{
     [self.activity stopAnimating];
+#ifdef HACK_AUTH_WEBPAGE_REMOVE_ACCOUNT_CREATION
+    [self.webview stringByEvaluatingJavaScriptFromString:@"\
+     var els = document.getElementsByTagName('a');\
+     for (var i = 0, l = els.length; i < l; i++) {\
+         var el = els[i];\
+         if (el.href.indexOf('#two') > -1 ) {\
+             el.parentNode.removeChild(el);\
+             break;\
+         }\
+     }"];
+#endif
 }
 
 - (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error{

@@ -1091,7 +1091,7 @@
 #endif
                 [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(id result, NSError *error) {
                     if(result&&[result objectForKey:@"file"]&&[result objectForKey:@"file"]!=[NSNull null]){
-                        if([(NSString*)[result objectForKey:@"file"] compare:@"not found"]!=NSOrderedSame){
+                        if([(NSString*)[result objectForKey:@"file"] compare:@"not found"]!=NSOrderedSame && [(NSString*)[result objectForKey:@"file"] compare:@"forbidden"]!=NSOrderedSame){
                             if(responseBlock){
                                 responseBlock(result,nil);
                             }

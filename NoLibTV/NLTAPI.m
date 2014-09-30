@@ -49,6 +49,7 @@
         self.familiesById = [NSMutableDictionary dictionary];
         self.familiesByKey = [NSMutableDictionary dictionary];
         self.partnersByKey = [NSMutableDictionary dictionary];
+        self.trustBackendQualityAdaptation = true;
         [self loadCache];
     }
     return self;
@@ -274,6 +275,9 @@
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection{
+#ifdef DEBUG_NLT_CALL
+    //NSLog(@" > finished call to %@",connection.originalRequest.URL.absoluteString);
+#endif
     self.networkActivityCount--;
     if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
         [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
@@ -366,6 +370,9 @@
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error{
+#ifdef DEBUG_NLT_CALL
+    NSLog(@" > error on call to %@",connection.originalRequest.URL.absoluteString);
+#endif
     self.networkActivityCount--;
     if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
         [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
@@ -828,6 +835,9 @@
     if(!isRead){
         method = @"DELETE";
     }
+#ifdef DEBUG
+    NSLog(@"Read %i -> %i ...",show.id_show,isRead);
+#endif
     [[NLTAPI sharedInstance] callAPI:urlStr withResultBlock:^(id result, NSError *error) {
         if(error){
             if(responseBlock){
@@ -847,7 +857,7 @@
             }
             if(responseBlock){
 #ifdef DEBUG
-                NSLog(@"Result %@",result);
+                NSLog(@"Result mark read : %i %@",isRead,result);
 #endif
                 responseBlock(result, nil);
             }
@@ -1058,24 +1068,48 @@
                     }
                 }
                 if(subLangInfo &&  [[subLangInfo objectForKey:@"quality_list"] isKindOfClass:[NSDictionary class]]){
-                    NSDictionary* qualityList = [subLangInfo objectForKey:@"quality_list"];
-                    //Searching for available quality matching request
-                    //NSDictionary* qualityInfo = nil;
-                    for (NSString* aivalableQuality in qualityList) {
-                        //NSDictionary* aivalableQualityInfo = [qualityList objectForKey:qualityList];
-                        if([aivalableQuality compare:preferedQuality options:NSCaseInsensitiveSearch]==NSOrderedSame){
-                            //Perfect match
-                            qualityKey = aivalableQuality;
-                            //qualityInfo = aivalableQualityInfo;
-                            infoOk = TRUE;
-                            perfectMatchQuality = true;
-                            break;
-                        }else{
-                            //Alternative match
-                            if(qualityKey == nil){
+                    //Searching for quality key in media is not really needed as the backend handles the adaptation if format is not availalbe
+                    if(self.trustBackendQualityAdaptation){
+                        qualityKey = preferedQuality;
+                        infoOk = TRUE;
+                    }else{
+#warning TODO Fetch qualities from backend
+                        NSArray* allQualities = @[@"LQ",@"HQ",@"TV",@"HD_720",@"HD_1080"];
+                        NSUInteger indexOfPreferredQuality = [allQualities indexOfObject:preferedQuality];
+                        
+                        NSDictionary* qualityList = [subLangInfo objectForKey:@"quality_list"];
+                        //Searching for available quality matching request
+                        //NSDictionary* qualityInfo = nil;
+                        for (NSString* aivalableQuality in qualityList) {
+                            //NSDictionary* aivalableQualityInfo = [qualityList objectForKey:qualityList];
+                            if([aivalableQuality compare:preferedQuality options:NSCaseInsensitiveSearch]==NSOrderedSame){
+                                //Perfect match
                                 qualityKey = aivalableQuality;
                                 //qualityInfo = aivalableQualityInfo;
                                 infoOk = TRUE;
+                                perfectMatchQuality = true;
+                                break;
+                            }else{
+                                //Alternative match
+                                if(qualityKey == nil){
+                                    qualityKey = aivalableQuality;
+                                    //qualityInfo = aivalableQualityInfo;
+                                    infoOk = TRUE;
+                                }else if([qualityKey compare:preferedQuality options:NSCaseInsensitiveSearch] != NSOrderedSame){
+                                    //The selected quality is an alternative match: we check that this new one isn't "closest" to prefered quality
+                                    NSUInteger currentIndex = [allQualities indexOfObject:qualityKey];
+                                    NSUInteger newIndex = [allQualities indexOfObject:aivalableQuality];
+                                    if(currentIndex!=NSNotFound&&newIndex!=NSNotFound&&indexOfPreferredQuality!=NSNotFound){
+                                        long currentDeltaQuality = (long)indexOfPreferredQuality - (long)currentIndex;
+                                        long newDeltaQuality = (long)indexOfPreferredQuality - (long)newIndex;
+                                        if( (currentDeltaQuality < 0) && (newDeltaQuality > 0) ){
+                                            //Current alternate match is bigger than expected, we choose the lower new one
+                                            qualityKey = aivalableQuality;
+                                        }else if( ABS(newDeltaQuality) < ABS(currentDeltaQuality) ){
+                                            qualityKey = aivalableQuality;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

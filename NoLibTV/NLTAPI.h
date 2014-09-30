@@ -42,6 +42,7 @@
 @property (retain,nonatomic) NSString* preferedLanguage;//Prefered audio language for video (fr, ja, en, nil for original version)
 @property (retain,nonatomic) NSString* preferedSubtitleLanguage;//Prefered subtitle language (none, fr, en)
 @property (assign,nonatomic) BOOL autoLaunchAuthentificationView;//Calls NLTOAuth authenticate when needed if true
+@property (assign, nonatomic)BOOL trustBackendQualityAdaptation;//The backend should be able to replace the quality requested if it is not available. If trustBackendQualityAdaptation is false, we try to always request a quality available
 
 #pragma mark Shared singleton
 + (instancetype)sharedInstance;

@@ -12,7 +12,7 @@
 
 @property (retain, nonatomic) NSDate* broadcastDate;
 
-@property (assign, nonatomic) NSDictionary* rawShow;
+@property (retain, nonatomic) NSDictionary* rawShow;
 
 //Raw field, generated from API
 @property (assign, nonatomic) BOOL mark_read;
@@ -59,6 +59,10 @@
 @property (retain, nonatomic) NSString* show_OT_lang;
 @property (retain, nonatomic) NSString* family_OT;
 @property (retain, nonatomic) NSString* family_OT_lang;
+
+/*
+ Show title (translated)
+ */
 @property (retain, nonatomic) NSString* show_TT;
 @property (retain, nonatomic) NSString* family_TT;
 @property (retain, nonatomic) NSString* show_resume; // type unknown by generator

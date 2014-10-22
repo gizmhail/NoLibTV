@@ -7,7 +7,9 @@
 //
 
 #import <Foundation/Foundation.h>
+#ifndef NLTOAUTH_NO_LOGINCONTROLLER
 #import "NLTOAuthController.h"
+#endif
 
 #if ! __has_feature(objc_arc)
 // ARC is Off
@@ -25,11 +27,13 @@ typedef void (^NLTCallResponseBlock)(id result, NSError *error);
 @property (retain, nonatomic) NSString* clientId;
 @property (retain, nonatomic) NSString* clientSecret;
 @property (retain, nonatomic) NSString* redirectUri;
-@property (retain,nonatomic) NLTOAuthController* oauthController;
 @property (retain,nonatomic) NSString* oauthAccessToken;
 @property (retain,nonatomic) NSString* oauthRefreshToken;
 @property (retain,nonatomic) NSString* oauthTokenType;
 @property (retain,nonatomic) NSDate* oauthExpirationDate;
+#ifndef NLTOAUTH_NO_LOGINCONTROLLER
+@property (retain,nonatomic) NLTOAuthController* oauthController;
+#endif
 
 
 //Return the NLTOAuth singleton
@@ -66,4 +70,9 @@ typedef void (^NLTCallResponseBlock)(id result, NSError *error);
  * Internal usage : doesn't need to be manually called
  */
 - (void)errorDuringNLTOAuthControllerDisplay:(NSError*)error;
+
+/**
+ * Load info stored in settings
+ */
+- (void)loadOauthInfo;
 @end

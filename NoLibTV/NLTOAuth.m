@@ -9,6 +9,8 @@
 #import "NLTOAuth.h"
 #import "Base64.h"
 
+#import "GroupSettingsManager.h"
+
 @interface NLTOAuth ()
 @property (retain,nonatomic) NSString* oauthCode;
 @property (copy,nonatomic) NLTAuthResponseBlock authResponseBlock;
@@ -72,6 +74,7 @@
     if(self.oauthAccessToken && self.oauthTokenType && self.oauthExpirationDate && [[NSDate date] compare:self.oauthExpirationDate] == NSOrderedAscending){
         return TRUE;
     }else if(self.oauthAccessToken){
+        [self logAuthEvent:@"Access token outdated"];
         self.oauthAccessToken = nil;
         self.oauthExpirationDate = nil;
     }
@@ -86,7 +89,7 @@
             responseBlock(TRUE, nil);
         }
     }else{
-        //Checking if a refresh token might hel us here
+        //Checking if a refresh token might help us here
         if(self.oauthRefreshToken){
             __weak NLTOAuth* weakSelf = self;
             NLTAuthResponseBlock previousblock = nil;
@@ -100,6 +103,7 @@
                 //Return error
                 if(error){
                     if(responseBlock){
+                        [weakSelf logAuthEvent:@"isAuthenticatedAfterRefreshTokenUse_auth_error" withDetails:[error description]];
                         responseBlock(FALSE, error);
                     }
                 }else if([weakSelf isAuthenticated]){
@@ -109,6 +113,7 @@
                     }
                 }else{
                     //Was tring to use a refresh token which was probably outdated
+                    [weakSelf logAuthEvent:@"isAuthenticatedAfterRefreshTokenUse_auth_failed"];
                     responseBlock(FALSE, nil);
                 }
             };
@@ -182,6 +187,8 @@
 }
 
 - (void)displayOAuthControllerOverlay{
+#ifndef NLTOAUTH_NO_LOGINCONTROLLER
+
     self.oauthController = [[NLTOAuthController alloc] init];
     UIViewController* controller = [[[UIApplication sharedApplication] keyWindow] rootViewController];
     //Handle already present modal view
@@ -189,16 +196,20 @@
         controller = controller.presentedViewController;
     }
     [self requestAccessTokenWebviewFrom:controller];
+#endif
 }
 
 - (void)requestAccessTokenWebviewFrom:(UIViewController*)controller{
+#ifndef NLTOAUTH_NO_LOGINCONTROLLER
     self.oauthController = [[NLTOAuthController alloc] init];
     [controller presentViewController:self.oauthController animated:YES completion:^{
         
     }];
+#endif
 }
 
 - (void)errorDuringNLTOAuthControllerDisplay:(NSError*)error{
+#ifndef NLTOAUTH_NO_LOGINCONTROLLER
     [self.oauthController dismissViewControllerAnimated:YES completion:^{
         if(self.authResponseBlock){
             self.authResponseBlock(error);
@@ -206,15 +217,16 @@
         }
     }];
     self.oauthController = nil;
+#endif
 }
 
 - (void)fetchAccessTokenFromAuthCode:(NSString*)code{
-#ifdef DEBUG
-    NSLog(@"fetchAccessTokenFromAuthCode");
-#endif
+    [self logAuthEvent:@"fetchAccessTokenFromAuthCode"];
     //OAuthController can be dismissed
+#ifndef NLTOAUTH_NO_LOGINCONTROLLER
     [self.oauthController dismissViewControllerAnimated:YES completion:nil];
     self.oauthController = nil;
+#endif
     
     self.oauthCode = code;
     self.oauthAccessToken = nil;
@@ -225,9 +237,7 @@
 }
 
 - (void)fetchAccessTokenFromRefreshToken{
-#ifdef DEBUG
-    NSLog(@"fetchAccessTokenFromRefreshToken");
-#endif
+    [self logAuthEvent:@"fetchAccessTokenFromRefreshToken"];
     self.oauthCode = nil;
     self.oauthAccessToken = nil;
     self.oauthExpirationDate = nil;
@@ -278,7 +288,7 @@
 }
 
 - (void)saveOAuthInfo{
-    NSUserDefaults* settings = [NSUserDefaults standardUserDefaults];
+    GroupSettingsManager* settings = [GroupSettingsManager sharedInstance];
     if(self.oauthAccessToken){
         [settings setObject:self.oauthAccessToken forKey:@"NLTOAuth_oauthAccessToken"];
     }else{
@@ -303,7 +313,7 @@
 }
 
 - (void)loadOauthInfo{
-    NSUserDefaults* settings = [NSUserDefaults standardUserDefaults];
+    GroupSettingsManager* settings = [GroupSettingsManager sharedInstance];
     self.oauthAccessToken = [settings objectForKey:@"NLTOAuth_oauthAccessToken"];
     self.oauthRefreshToken = [settings objectForKey:@"NLTOAuth_oauthRefreshToken"];
     self.oauthExpirationDate = [settings objectForKey:@"NLTOAuth_oauthExpirationDate"];
@@ -332,27 +342,30 @@
         answer = [NSJSONSerialization JSONObjectWithData:self.data options:NSJSONReadingAllowFragments error:&jsonError];
     }
     if(!jsonError&&[answer isKindOfClass:[NSDictionary class]]){
+        [[GroupSettingsManager sharedInstance] logEvent:@"OAuthAnswerReceived" withUserInfo:@{@"answer":answer}];
         self.oauthAccessToken = [answer objectForKey:@"access_token"];
         self.oauthRefreshToken = [answer objectForKey:@"refresh_token"];
         self.oauthTokenType = [answer objectForKey:@"token_type"];
         long expiresIn = [[answer objectForKey:@"expires_in"] integerValue];
         self.oauthExpirationDate = [[NSDate date] dateByAddingTimeInterval:expiresIn];
         [self saveOAuthInfo];
+    }else if(jsonError&&answer){
+        [[GroupSettingsManager sharedInstance] logEvent:@"OAuthJsonError" withUserInfo:@{@"jsonError":jsonError,@"answer":answer}];
+    }else if(!self.data){
+        [self logAuthEvent:@"fetchAccessToken failure - no data"];
+    }else{
+        [[GroupSettingsManager sharedInstance] logEvent:@"fetchAccessToken failure - data problem" withUserInfo:@{@"data":[[NSString alloc] initWithData:self.data encoding:NSUTF8StringEncoding]}];
     }
     //Callback, error handling
     if(self.oauthAccessToken){
-#ifdef DEBUG
-        NSLog(@"fetchAccessToken sucess");
-#endif
+        [self logAuthEvent:@"fetchAccessToken success"];
         //Success
         if(self.authResponseBlock){
             self.authResponseBlock(nil);
             self.authResponseBlock = nil;
         }
     }else{
-#ifdef DEBUG
-        NSLog(@"fetchAccessToken failure %@", answer);
-#endif
+        [self logAuthEvent:@"fetchAccessToken failure"];
         //Failure
         if(refreshTokenTry){
             //Was tring to use a refresh token - was probably outdated. The problem will be handled in the authResponseBlock (either switch to normal login with webview, or handle differently)
@@ -382,6 +395,41 @@
         self.authResponseBlock(error);
         self.authResponseBlock = nil;
     }
+}
+
+#pragma mark Debug
+
+- (void)logAuthEvent:(NSString*)event withDetails:(NSString*)details{
+#ifdef NLT_RECORD_LOGS
+    NSMutableDictionary* info = [self authInfo];
+    if(details){
+        [info setObject:details forKey:@"details"];
+    }
+    [[GroupSettingsManager sharedInstance] logEvent:event withUserInfo:info];
+#endif
+}
+
+- (void)logAuthEvent:(NSString*)event{
+#ifdef NLT_RECORD_LOGS
+    [[GroupSettingsManager sharedInstance] logEvent:event withUserInfo:[self authInfo]];
+#endif
+}
+
+- (NSMutableDictionary*)authInfo{
+    NSMutableDictionary* info = [NSMutableDictionary dictionary];
+    if(self.oauthAccessToken){
+        [info setObject:@"oauthAccessToken" forKey:self.oauthAccessToken];
+    }
+    if(self.oauthRefreshToken){
+        [info setObject:@"oauthRefreshToken" forKey:self.oauthRefreshToken];
+    }
+    if(self.oauthExpirationDate){
+        [info setObject:@"oauthExpirationDate" forKey:self.oauthExpirationDate];
+    }
+    if(self.oauthTokenType){
+        [info setObject:@"oauthTokenType" forKey:self.oauthTokenType];
+    }
+    return info;
 }
 
 @end

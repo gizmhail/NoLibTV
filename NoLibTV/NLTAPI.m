@@ -8,6 +8,7 @@
 
 #import "NLTAPI.h"
 #import "NLTShow.h"
+#import "GroupSettingsManager.h"
 
 @interface NLTAPICallInfo : NSObject
 @property (retain,nonatomic) NSString* urlPart;
@@ -152,10 +153,7 @@
             if(connection){
                 callInfo.connection = connection;
                 [self.calls addObject:callInfo];
-                self.networkActivityCount++;
-                if(self.handleNetworkActivityIndicator&&![[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
-                    [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:TRUE];
-                }
+                [self incrementNetWorkActivityCounter];
                 [connection start];
             }else{
                 NSError* error = [NSError errorWithDomain:@"NLTAPIDomain" code:500 userInfo:@{@"message":@"Unable to create connection"}];
@@ -234,7 +232,7 @@
 #pragma mark cache
 
 - (void)loadCache{
-    NSUserDefaults* settings = [NSUserDefaults standardUserDefaults];
+    GroupSettingsManager* settings = [GroupSettingsManager sharedInstance];
     NSData* cacheData = [settings objectForKey:@"NLTAPI_cachedResults"];
     NSDictionary* cache = [NSKeyedUnarchiver unarchiveObjectWithData:cacheData];
 
@@ -256,11 +254,32 @@
 }
 
 - (void) saveCache{
-    NSUserDefaults* settings = [NSUserDefaults standardUserDefaults];
+    GroupSettingsManager* settings = [GroupSettingsManager sharedInstance];
     NSData* cacheData = [NSKeyedArchiver archivedDataWithRootObject:self.cachedResults];
     [settings setObject:cacheData forKey:@"NLTAPI_cachedResults"];
     [settings synchronize];
 }
+
+#pragma Network activity
+
+- (void)incrementNetWorkActivityCounter{
+#ifndef NLTAPI_NO_NETWORKACTIVITY
+    self.networkActivityCount++;
+    if(self.handleNetworkActivityIndicator&&![[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
+        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:TRUE];
+    }
+#endif
+}
+
+- (void)decrementActivityCounter{
+#ifndef NLTAPI_NO_NETWORKACTIVITY
+    self.networkActivityCount--;
+    if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
+        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
+    }
+#endif
+}
+
 
 #pragma mark NSURLConnectionDataDelegate
 
@@ -278,10 +297,7 @@
 #ifdef DEBUG_NLT_CALL
     //NSLog(@" > finished call to %@",connection.originalRequest.URL.absoluteString);
 #endif
-    self.networkActivityCount--;
-    if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
-        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
-    }
+    [self decrementActivityCounter];
     NLTAPICallInfo* info = [self callInfoForConnection:connection];
     NSError* jsonError = nil;
     NSDictionary* answer = nil;
@@ -373,11 +389,8 @@
 #ifdef DEBUG_NLT_CALL
     NSLog(@" > error on call to %@",connection.originalRequest.URL.absoluteString);
 #endif
-    self.networkActivityCount--;
-    if(self.handleNetworkActivityIndicator&&[[UIApplication sharedApplication] isNetworkActivityIndicatorVisible]){
-        [[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:FALSE];
-    }
-
+    [self decrementActivityCounter];
+    
     NLTAPICallInfo* info = [self callInfoForConnection:connection];
     if(info.responseBlock){
         info.responseBlock(nil, error);

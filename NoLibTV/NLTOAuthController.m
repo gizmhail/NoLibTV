@@ -36,6 +36,7 @@
 -(void)viewDidAppear:(BOOL)animated{
     NSString* urlStr = [NSString stringWithFormat:@"%@/OAuth2/authorize.php?response_type=code&client_id=%@&state=STATE",NOCO_ENDPOINT,[NLTOAuth sharedInstance].clientId];
     [self.webview loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:urlStr]]];
+    [super viewDidAppear:animated];
 }
 
 - (void)didReceiveMemoryWarning
@@ -89,6 +90,13 @@
              break;\
          }\
      }"];
+    NSString *html = [self.webview stringByEvaluatingJavaScriptFromString:@"document.body.innerHTML"];
+    if(html && [html rangeOfString:@"Fatal error"].location != NSNotFound){
+        NSLog(@"Noco auth server is dead (Fatal error in output)");
+        NSError* error = [NSError errorWithDomain:@"NLTErrorDomain" code:666 userInfo:@{@"oauthError":@"Auth serveur down"}];
+        [[NLTOAuth sharedInstance] errorDuringNLTOAuthControllerDisplay:error];
+    }
+
 #endif
 }
 
